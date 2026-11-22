@@ -2,9 +2,27 @@
 {
   "app": "PRINCE TV",
   "channels": [
-    {"id": 1, "name": "TV Imaan", "category": "Tanzania", "icon": "tv"},
-    {"id": 2, "name": "ZBC 2", "category": "Tanzania", "icon": "tv"},
-    {"id": 3, "name": "UTV", "category": "Tanzania", "icon": "tv"},
+    {
+      "id": 1,
+      "name": "TV Imaan",
+      "category": "Tanzania",
+      "icon": "tv",
+      "streamUrl": "http://exclusifott.pro/play/live.php?mac=00:1A:79:C6:84:32&stream=2073313&extension=ts&play_token=j3vK5XRz1c"
+    },
+    {
+      "id": 2,
+      "name": "ZBC 2",
+      "category": "Tanzania",
+      "icon": "tv",
+      "streamUrl": "http://exclusifott.pro/play/live.php?mac=00:1A:79:C6:84:32&stream=2073303&extension=ts&play_token=jGSho1NB6C"
+    },
+    {
+      "id": 3,
+      "name": "UTV",
+      "category": "Tanzania",
+      "icon": "tv",
+      "streamUrl": "http://exclusifott.pro/play/live.php?mac=00:1A:79:C6:84:32&stream=2073309&extension=ts&play_token=Ip0WuRMuw9"
+    },
     {
       "id": 4,
       "name": "TBC 2",
@@ -12,19 +30,103 @@
       "icon": "tv",
       "streamUrl": "https://stream-134630.castr.net/5fe35eae8c53540cab83659a/live_44ed95e05b6d11f18d5d85805abbdd6f/index.m3u8"
     },
-    {"id": 5, "name": "Dodoma TV", "category": "Tanzania", "icon": "tv"},
-    {"id": 6, "name": "BBC News", "category": "News", "icon": "news"},
-    {"id": 7, "name": "Sony Max", "category": "Movies", "icon": "movie"},
-    {"id": 8, "name": "Kix", "category": "Movies", "icon": "movie"},
-    {"id": 9, "name": "Fix & Fox", "category": "Kids", "icon": "kids"},
-    {"id": 10, "name": "Cartoon Network", "category": "Kids", "icon": "kids"},
-    {"id": 11, "name": "MBC 3", "category": "Kids", "icon": "kids"},
-    {"id": 12, "name": "Azam One", "category": "Entertainment", "icon": "tv"},
-    {"id": 13, "name": "Azam Two", "category": "Entertainment", "icon": "tv"},
-    {"id": 14, "name": "Azam Sports 1", "category": "Sports", "icon": "sports"},
-    {"id": 15, "name": "Azam Sports 2", "category": "Sports", "icon": "sports"},
-    {"id": 16, "name": "Azam Sports 3", "category": "Sports", "icon": "sports"},
-    {"id": 17, "name": "Azam Sports 4", "category": "Sports", "icon": "sports"},
-    {"id": 18, "name": "Sinema Zetu", "category": "Movies", "icon": "movie"}
+    {
+      "id": 5,
+      "name": "Dodoma TV",
+      "category": "Tanzania",
+      "icon": "tv",
+      "streamUrl": "https://goliveafrica.media:9998/live/625965017ed69/index.m3u8"
+    },
+    {
+      "id": 6,
+      "name": "BBC News",
+      "category": "News",
+      "icon": "news",
+      "streamUrl": "http://vs-hls-push-ww-live.akamaized.net/x=4/i=urn:bbc:pips:service:bbc_news_channel_hd/t=3840/v=pv14/b=5070016/main.m3u8"
+    },
+    {
+      "id": 7,
+      "name": "Sony Max",
+      "category": "Movies",
+      "icon": "movie",
+      "streamUrl": "http://204.52.191.254/play/live.php?mac=00:1A:79:85:DC:0C&stream=717731&extension=ts&play_token=l6TImjzL75&sn2="
+    },
+    {
+      "id": 8,
+      "name": "Kix",
+      "category": "Movies",
+      "icon": "movie",
+      "streamUrl": "http://exclusifott.pro/play/live.php?mac=00:1A:79:C6:84:32&stream=2073347&extension=ts&play_token=ihdFJoTumz"
+    },
+    {
+      "id": 9,
+      "name": "Fix & Fox",
+      "category": "Kids",
+      "icon": "kids",
+      "streamUrl": "http://exclusifott.pro/play/live.php?mac=00:1A:79:C6:84:32&stream=2073355&extension=ts&play_token=xvkvqzEOx0"
+    },
+    {
+      "id": 10,
+      "name": "Cartoon Network",
+      "category": "Kids",
+      "icon": "kids",
+      "streamUrl": "http://exclusifott.pro/play/live.php?mac=00:1A:79:C6:84:32&stream=2073370&extension=ts&play_token=K7b784etzC"
+    },
+    {
+      "id": 11,
+      "name": "MBC 3",
+      "category": "Kids",
+      "icon": "kids",
+      "streamUrl": "https://shd-gcp-live.edgenextcdn.net/live/bitmovin-mbc-3-usa/5d58265a862a476dc7f97694addb5ded/index.m3u8"
+    },
+    {
+      "id": 12,
+      "name": "Azam One",
+      "category": "Entertainment",
+      "icon": "tv",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991732&extension=ts&play_token=EdenzOkJJs&sn2="
+    },
+    {
+      "id": 13,
+      "name": "Azam Two",
+      "category": "Entertainment",
+      "icon": "tv",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991731&extension=ts&play_token=rPPd8pg4t8&sn2="
+    },
+    {
+      "id": 14,
+      "name": "Azam Sports 1",
+      "category": "Sports",
+      "icon": "sports",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991736&extension=ts&play_token=SvXXfGDYi9&sn2="
+    },
+    {
+      "id": 15,
+      "name": "Azam Sports 2",
+      "category": "Sports",
+      "icon": "sports",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991735&extension=ts&play_token=9GWxxHDYNv&sn2="
+    },
+    {
+      "id": 16,
+      "name": "Azam Sports 3",
+      "category": "Sports",
+      "icon": "sports",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991734&extension=ts&play_token=3IUruOSZCO&sn2="
+    },
+    {
+      "id": 17,
+      "name": "Azam Sports 4",
+      "category": "Sports",
+      "icon": "sports",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991733&extension=ts&play_token=ljTctSetBj&sn2="
+    },
+    {
+      "id": 18,
+      "name": "Sinema Zetu",
+      "category": "Movies",
+      "icon": "movie",
+      "streamUrl": "http://ffg.gogo8k.me/play/live.php?mac=00:1A:79:CC:C6:DC&stream=1991670&extension=ts&play_token=P8dQ2f4qGo&sn2="
+    }
   ]
 }
