@@ -26,6 +26,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -243,7 +244,6 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(Color.BLACK)
             setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT)
 
-            // Ficha muda uliochezwa na jumla ya muda.
             post {
                 hidePlayerTimeLabels()
             }
@@ -670,7 +670,11 @@ class MainActivity : AppCompatActivity() {
             !(url.startsWith("https://", true) ||
               url.startsWith("http://", true))
         ) {
-            Toast.makeText(this, "Weka URL sahihi", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Weka URL sahihi",
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
 
@@ -682,11 +686,19 @@ class MainActivity : AppCompatActivity() {
         status.text = "Inaunganisha kwenye server..."
 
         val httpFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("PRINCE TV Android")
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(20000)
+            .setUserAgent(
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 PRINCE-TV"
+            )
+            .setConnectTimeoutMs(20000)
+            .setReadTimeoutMs(30000)
             .setAllowCrossProtocolRedirects(true)
-            .setDefaultRequestProperties(mapOf("Accept" to "*/*"))
+            .setDefaultRequestProperties(
+                mapOf(
+                    "Accept" to "*/*",
+                    "Connection" to "keep-alive"
+                )
+            )
 
         val extractors = DefaultExtractorsFactory()
             .setTsExtractorFlags(
@@ -697,35 +709,57 @@ class MainActivity : AppCompatActivity() {
         val mediaSourceFactory =
             DefaultMediaSourceFactory(this, extractors)
                 .setDataSourceFactory(httpFactory)
+                .setLoadErrorHandlingPolicy(
+                    DefaultLoadErrorHandlingPolicy(3)
+                )
 
         val itemBuilder = MediaItem.Builder().setUri(url)
-        detectMimeType(url)?.let { itemBuilder.setMimeType(it) }
+
+        detectMimeType(url)?.let {
+            itemBuilder.setMimeType(it)
+        }
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .also { exo ->
+
                 playerView.player = exo
 
-                // Hakikisha muda hauonekani tena baada ya player kuanza.
                 playerView.post {
                     hidePlayerTimeLabels()
                 }
 
                 exo.addListener(object : Player.Listener {
+
                     override fun onPlaybackStateChanged(state: Int) {
                         status.text = when (state) {
-                            Player.STATE_BUFFERING -> "Inapokea data..."
-                            Player.STATE_READY -> "Video iko tayari kucheza"
-                            Player.STATE_ENDED -> "Stream imeisha"
-                            Player.STATE_IDLE -> "Player imesimama"
-                            else -> "Inaandaa video..."
+                            Player.STATE_BUFFERING ->
+                                "Inapokea data..."
+
+                            Player.STATE_READY ->
+                                "Inacheza vizuri"
+
+                            Player.STATE_ENDED ->
+                                "Stream imeisha"
+
+                            Player.STATE_IDLE ->
+                                "Player imesimama"
+
+                            else ->
+                                "Inaandaa video..."
                         }
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
                         status.text =
-                            "KOSA: ${error.errorCodeName}"
+                            "Imeshindwa kucheza: ${error.errorCodeName}"
+
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Tatizo la stream: ${error.errorCodeName}",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 })
 
@@ -771,6 +805,7 @@ class MainActivity : AppCompatActivity() {
         if (::playerView.isInitialized) {
             playerView.player = null
         }
+
         player?.release()
         player = null
     }
