@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -130,31 +131,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // HEADER YENYE LOGO MPYA
     private fun createHeader(): View {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(15), dp(18), dp(15))
+            setPadding(dp(18), dp(13), dp(18), dp(13))
             setBackgroundColor(dark)
         }
 
-        val logo = TextView(this).apply {
-            text = "P"
-            textSize = 25f
-            gravity = Gravity.CENTER
-            setTextColor(Color.BLACK)
-            typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
-            background = shape(gold, 50)
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.ic_prince_tv)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(2), dp(2), dp(2), dp(2))
         }
 
         header.addView(
             logo,
-            LinearLayout.LayoutParams(dp(46), dp(46))
+            LinearLayout.LayoutParams(dp(52), dp(52))
         )
 
         val names = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(11), 0, 0, 0)
+            setPadding(dp(12), 0, 0, 0)
         }
 
         names.addView(label("PRINCE TV", 21f, gold, true))
@@ -168,9 +167,12 @@ class MainActivity : AppCompatActivity() {
         val live = TextView(this).apply {
             text = "● LIVE"
             textSize = 11f
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            typeface = Typeface.create(
+                "sans-serif-bold",
+                Typeface.NORMAL
+            )
             setTextColor(gold)
-            setPadding(dp(10), dp(7), dp(10), dp(7))
+            setPadding(dp(11), dp(8), dp(11), dp(8))
             background = shape(panel, 30)
         }
 
