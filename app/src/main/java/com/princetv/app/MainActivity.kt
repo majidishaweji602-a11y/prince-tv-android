@@ -125,6 +125,7 @@ class MainActivity : AppCompatActivity() {
                 playUrl(urlInput.text.toString().trim())
             }
         }
+
         page.addView(
             playButton,
             LinearLayout.LayoutParams(-1, dp(52))
@@ -160,9 +161,14 @@ class MainActivity : AppCompatActivity() {
             channelList.removeAllViews()
 
             for (i in 0 until channels.length()) {
+
                 val channel = channels.getJSONObject(i)
+
                 val name = channel.getString("name")
                 val category = channel.getString("category")
+                val streamUrl = channel.optString(
+                    "streamUrl", ""
+                ).trim()
 
                 val channelButton = Button(this).apply {
                     text = "$name   •   $category"
@@ -171,13 +177,24 @@ class MainActivity : AppCompatActivity() {
                     setBackgroundColor(Color.rgb(31, 29, 42))
 
                     setOnClickListener {
-                        status.text =
-                            "$name imechaguliwa. Stream URL bado haijaunganishwa."
-                        Toast.makeText(
-                            this@MainActivity,
-                            name,
-                            Toast.LENGTH_SHORT
-                        ).show()
+
+                        if (streamUrl.isNotBlank()) {
+
+                            status.text = "Inaunganisha $name..."
+
+                            playUrl(streamUrl)
+
+                        } else {
+
+                            status.text =
+                                "$name bado haina stream URL."
+
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Stream ya $name bado haijawekwa",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 }
 
@@ -192,14 +209,18 @@ class MainActivity : AppCompatActivity() {
                 )
             }
 
-            status.text = "${channels.length()} channels zimepatikana"
+            status.text =
+                "${channels.length()} channels zimepatikana"
 
         } catch (e: Exception) {
-            status.text = "Imeshindwa kusoma channels.json: ${e.message}"
+
+            status.text =
+                "Imeshindwa kusoma channels.json: ${e.message}"
         }
     }
 
     private fun detectMimeType(url: String): String? {
+
         val uri = Uri.parse(url)
 
         val extension = (
@@ -218,20 +239,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playUrl(url: String) {
+
         if (
             url.isBlank() ||
             !(url.startsWith("https://", true) ||
               url.startsWith("http://", true))
         ) {
+
             Toast.makeText(
                 this,
                 "Weka URL sahihi",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
         releasePlayer()
+
         status.text = "Inaunganisha kwenye server..."
 
         val httpFactory = DefaultHttpDataSource.Factory()
@@ -241,7 +266,9 @@ class MainActivity : AppCompatActivity() {
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(20000)
             .setAllowCrossProtocolRedirects(true)
-            .setDefaultRequestProperties(mapOf("Accept" to "*/*"))
+            .setDefaultRequestProperties(
+                mapOf("Accept" to "*/*")
+            )
 
         val extractors = DefaultExtractorsFactory()
             .setTsExtractorFlags(
@@ -253,7 +280,8 @@ class MainActivity : AppCompatActivity() {
             DefaultMediaSourceFactory(this, extractors)
                 .setDataSourceFactory(httpFactory)
 
-        val itemBuilder = MediaItem.Builder().setUri(url)
+        val itemBuilder = MediaItem.Builder()
+            .setUri(url)
 
         detectMimeType(url)?.let {
             itemBuilder.setMimeType(it)
@@ -263,21 +291,29 @@ class MainActivity : AppCompatActivity() {
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .also { exo ->
+
                 playerView.player = exo
 
                 exo.addListener(object : Player.Listener {
+
                     override fun onPlaybackStateChanged(
                         playbackState: Int
                     ) {
+
                         status.text = when (playbackState) {
+
                             Player.STATE_BUFFERING ->
                                 "Inapokea data kutoka server..."
+
                             Player.STATE_READY ->
                                 "Video iko tayari kucheza"
+
                             Player.STATE_ENDED ->
                                 "Stream imeisha"
+
                             Player.STATE_IDLE ->
                                 "Player imesimama"
+
                             else ->
                                 "Inaandaa video..."
                         }
@@ -286,6 +322,7 @@ class MainActivity : AppCompatActivity() {
                     override fun onPlayerError(
                         error: PlaybackException
                     ) {
+
                         status.text =
                             "KOSA: ${error.errorCodeName} — ${error.message ?: "Hakuna maelezo"}"
                     }
@@ -298,13 +335,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
+        return (
+            value * resources.displayMetrics.density
+        ).toInt()
     }
 
     private fun releasePlayer() {
+
         if (::playerView.isInitialized) {
             playerView.player = null
         }
+
         player?.release()
         player = null
     }
