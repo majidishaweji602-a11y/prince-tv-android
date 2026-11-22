@@ -2,6 +2,7 @@
 package com.princetv.app
 
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.Button
@@ -11,9 +12,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -67,14 +70,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         status = TextView(this).apply {
-            text = "Weka link ya channel unayotaka kujaribu"
+            text = "Weka link ya channel"
             textSize = 13f
             setTextColor(Color.LTGRAY)
             setPadding(0, 4, 0, 10)
         }
 
         urlInput = EditText(this).apply {
-            hint = "Bandika stream URL (.ts / .m3u8 / .mpd)"
+            hint = "Bandika URL ya channel"
             setHintTextColor(Color.GRAY)
             setTextColor(Color.WHITE)
             setSingleLine(true)
@@ -92,7 +95,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val note = TextView(this).apply {
-            text = "MPEG-TS, HLS na DASH • Native Android Player"
+            text = "AUTO FORMAT: TS • HLS • DASH • MP4"
             textSize = 12f
             setTextColor(Color.GRAY)
             setPadding(0, dp(16), 0, 0)
@@ -102,37 +105,60 @@ class MainActivity : AppCompatActivity() {
         page.addView(tagline)
         page.addView(playerView, playerParams)
         page.addView(status)
-        page.addView(
-            urlInput,
-            LinearLayout.LayoutParams(-1, dp(52))
-        )
-        page.addView(
-            playButton,
-            LinearLayout.LayoutParams(-1, dp(52))
-        )
+        page.addView(urlInput, LinearLayout.LayoutParams(-1, dp(52)))
+        page.addView(playButton, LinearLayout.LayoutParams(-1, dp(52)))
         page.addView(note)
 
         setContentView(page)
+    }
+
+    private fun detectMimeType(url: String): String? {
+        val uri = Uri.parse(url)
+
+        val extension = (
+            uri.getQueryParameter("extension")
+                ?: uri.lastPathSegment?.substringAfterLast('.', "")
+                ?: ""
+            ).lowercase()
+
+        return when (extension) {
+            "m3u8" -> MimeTypes.APPLICATION_M3U8
+            "mpd" -> MimeTypes.APPLICATION_MPD
+            "mp4", "m4v" -> MimeTypes.VIDEO_MP4
+            "ts", "mpegts" -> MimeTypes.VIDEO_MP2T
+            else -> null
+        }
     }
 
     private fun playUrl(url: String) {
 
         if (
             url.isBlank() ||
-            !(url.startsWith("https://", ignoreCase = true) ||
-              url.startsWith("http://", ignoreCase = true))
+            !(url.startsWith("https://", true) ||
+              url.startsWith("http://", true))
         ) {
             Toast.makeText(
                 this,
-                "Weka URL sahihi ya channel",
+                "Weka URL sahihi",
                 Toast.LENGTH_SHORT
             ).show()
             return
         }
 
         releasePlayer()
+        status.text = "Inaunganisha kwenye server..."
 
-        // Correct MPEG-TS extractor flags
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(
+                "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36"
+            )
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(20000)
+            .setAllowCrossProtocolRedirects(true)
+            .setDefaultRequestProperties(
+                mapOf("Accept" to "*/*")
+            )
+
         val extractors = DefaultExtractorsFactory()
             .setTsExtractorFlags(
                 DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
@@ -141,6 +167,14 @@ class MainActivity : AppCompatActivity() {
 
         val mediaSourceFactory =
             DefaultMediaSourceFactory(this, extractors)
+                .setDataSourceFactory(httpFactory)
+
+        val itemBuilder = MediaItem.Builder()
+            .setUri(url)
+
+        detectMimeType(url)?.let {
+            itemBuilder.setMimeType(it)
+        }
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
@@ -156,16 +190,19 @@ class MainActivity : AppCompatActivity() {
                     ) {
                         status.text = when (playbackState) {
                             Player.STATE_BUFFERING ->
-                                "Inapakia channel..."
+                                "Inapokea data kutoka server..."
 
                             Player.STATE_READY ->
-                                "Channel iko tayari kucheza"
+                                "Video iko tayari kucheza"
 
                             Player.STATE_ENDED ->
                                 "Stream imeisha"
 
+                            Player.STATE_IDLE ->
+                                "Player imesimama"
+
                             else ->
-                                "Inaandaa player..."
+                                "Inaandaa video..."
                         }
                     }
 
@@ -173,11 +210,11 @@ class MainActivity : AppCompatActivity() {
                         error: PlaybackException
                     ) {
                         status.text =
-                            "Imeshindwa kucheza: ${error.errorCodeName}"
+                            "KOSA: ${error.errorCodeName} — ${error.message ?: "Hakuna maelezo"}"
                     }
                 })
 
-                exo.setMediaItem(MediaItem.fromUri(url))
+                exo.setMediaItem(itemBuilder.build())
                 exo.prepare()
                 exo.playWhenReady = true
             }
@@ -188,7 +225,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun releasePlayer() {
-        playerView.player = null
+        if (::playerView.isInitialized) {
+            playerView.player = null
+        }
+
         player?.release()
         player = null
     }
