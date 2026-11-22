@@ -1,0 +1,24 @@
+
+{
+  "app": "PRINCE TV",
+  "channels": [
+    {"id": 1, "name": "TV Imaan", "category": "Tanzania", "icon": "tv"},
+    {"id": 2, "name": "ZBC 2", "category": "Tanzania", "icon": "tv"},
+    {"id": 3, "name": "UTV", "category": "Tanzania", "icon": "tv"},
+    {"id": 4, "name": "TBC 2", "category": "Tanzania", "icon": "tv"},
+    {"id": 5, "name": "Dodoma TV", "category": "Tanzania", "icon": "tv"},
+    {"id": 6, "name": "BBC News", "category": "News", "icon": "news"},
+    {"id": 7, "name": "Sony Max", "category": "Movies", "icon": "movie"},
+    {"id": 8, "name": "Kix", "category": "Movies", "icon": "movie"},
+    {"id": 9, "name": "Fix & Fox", "category": "Kids", "icon": "kids"},
+    {"id": 10, "name": "Cartoon Network", "category": "Kids", "icon": "kids"},
+    {"id": 11, "name": "MBC 3", "category": "Kids", "icon": "kids"},
+    {"id": 12, "name": "Azam One", "category": "Entertainment", "icon": "tv"},
+    {"id": 13, "name": "Azam Two", "category": "Entertainment", "icon": "tv"},
+    {"id": 14, "name": "Azam Sports 1", "category": "Sports", "icon": "sports"},
+    {"id": 15, "name": "Azam Sports 2", "category": "Sports", "icon": "sports"},
+    {"id": 16, "name": "Azam Sports 3", "category": "Sports", "icon": "sports"},
+    {"id": 17, "name": "Azam Sports 4", "category": "Sports", "icon": "sports"},
+    {"id": 18, "name": "Sinema Zetu", "category": "Movies", "icon": "movie"}
+  ]
+}
