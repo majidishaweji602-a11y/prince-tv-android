@@ -1,7 +1,9 @@
 
 package com.princetv.app
 
+import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -26,6 +28,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
 
@@ -52,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var currentTab = "Mwanzo"
+    private var autoRotateEnabled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         scroll.addView(content)
+
         main.addView(
             scroll,
             LinearLayout.LayoutParams(
@@ -137,7 +142,7 @@ class MainActivity : AppCompatActivity() {
             textSize = 25f
             gravity = Gravity.CENTER
             setTextColor(Color.BLACK)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
             background = shape(gold, 50)
         }
 
@@ -162,6 +167,7 @@ class MainActivity : AppCompatActivity() {
         val live = TextView(this).apply {
             text = "● LIVE"
             textSize = 11f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(gold)
             setPadding(dp(10), dp(7), dp(10), dp(7))
             background = shape(panel, 30)
@@ -197,6 +203,8 @@ class MainActivity : AppCompatActivity() {
 
         val watch = Button(this).apply {
             text = "▶  TAZAMA LIVE TV"
+            isAllCaps = false
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Color.BLACK)
             setBackgroundColor(gold)
             setOnClickListener { showLive() }
@@ -233,14 +241,22 @@ class MainActivity : AppCompatActivity() {
         playerView = PlayerView(this).apply {
             useController = true
             setBackgroundColor(Color.BLACK)
+            setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT)
+
+            // Ficha muda uliochezwa na jumla ya muda.
+            post {
+                hidePlayerTimeLabels()
+            }
         }
 
         content.addView(
             playerView,
-            LinearLayout.LayoutParams(-1, dp(220)).apply {
-                bottomMargin = dp(10)
+            LinearLayout.LayoutParams(-1, dp(260)).apply {
+                bottomMargin = dp(6)
             }
         )
+
+        addPlayerSizeControls()
 
         status = label("Chagua channel kuanza kutazama", 12f, muted)
         content.addView(status)
@@ -252,6 +268,8 @@ class MainActivity : AppCompatActivity() {
             hint = "Bandika stream URL hapa"
             setHintTextColor(Color.GRAY)
             setTextColor(white)
+            textSize = 14f
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
             setSingleLine(true)
             setPadding(dp(12), dp(8), dp(12), dp(8))
             background = shape(panel, 10)
@@ -266,6 +284,8 @@ class MainActivity : AppCompatActivity() {
 
         val play = Button(this).apply {
             text = "CHEZA URL"
+            isAllCaps = false
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Color.BLACK)
             setBackgroundColor(gold)
             setOnClickListener {
@@ -276,6 +296,108 @@ class MainActivity : AppCompatActivity() {
         content.addView(
             play,
             LinearLayout.LayoutParams(-1, dp(48))
+        )
+    }
+
+    private fun hidePlayerTimeLabels() {
+        val positionId = resources.getIdentifier(
+            "exo_position", "id", packageName
+        )
+
+        val durationId = resources.getIdentifier(
+            "exo_duration", "id", packageName
+        )
+
+        if (positionId != 0) {
+            playerView.findViewById<View>(positionId)?.visibility = View.GONE
+        }
+
+        if (durationId != 0) {
+            playerView.findViewById<View>(durationId)?.visibility = View.GONE
+        }
+    }
+
+    private fun addPlayerSizeControls() {
+        val horizontal = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(5), 0, dp(10))
+        }
+
+        fun addControl(title: String, action: () -> Unit) {
+            val button = Button(this).apply {
+                text = title
+                isAllCaps = false
+                textSize = 10f
+                typeface = Typeface.create(
+                    "sans-serif-medium",
+                    Typeface.NORMAL
+                )
+                setTextColor(Color.BLACK)
+                background = shape(gold, 9)
+                setPadding(dp(8), 0, dp(8), 0)
+                setOnClickListener { action() }
+            }
+
+            controls.addView(
+                button,
+                LinearLayout.LayoutParams(dp(92), dp(42)).apply {
+                    marginEnd = dp(7)
+                }
+            )
+        }
+
+        addControl("PANUA") {
+            playerView.setResizeMode(
+                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            )
+        }
+
+        addControl("JAZA") {
+            playerView.setResizeMode(
+                AspectRatioFrameLayout.RESIZE_MODE_FILL
+            )
+        }
+
+        addControl("RUDISHA") {
+            playerView.setResizeMode(
+                AspectRatioFrameLayout.RESIZE_MODE_FIT
+            )
+            autoRotateEnabled = false
+            requestedOrientation =
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+
+        addControl("AUTO ROTATE") {
+            autoRotateEnabled = !autoRotateEnabled
+
+            requestedOrientation = if (autoRotateEnabled) {
+                ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+
+            Toast.makeText(
+                this,
+                if (autoRotateEnabled) {
+                    "Auto rotate imewashwa"
+                } else {
+                    "Auto rotate imezimwa"
+                },
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        horizontal.addView(controls)
+
+        content.addView(
+            horizontal,
+            LinearLayout.LayoutParams(-1, dp(52))
         )
     }
 
@@ -326,6 +448,10 @@ class MainActivity : AppCompatActivity() {
                 textSize = 25f
                 gravity = Gravity.CENTER
                 setTextColor(gold)
+                typeface = Typeface.create(
+                    "sans-serif-medium",
+                    Typeface.NORMAL
+                )
                 background = shape(Color.rgb(39, 37, 31), 50)
             }
 
@@ -418,7 +544,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         content.addView(
-            label(subtitle, 11f, muted).apply {
+            label(subtitle, 12f, muted).apply {
                 setPadding(0, 0, 0, dp(10))
             }
         )
@@ -428,6 +554,7 @@ class MainActivity : AppCompatActivity() {
         val box = TextView(this).apply {
             text = message
             textSize = 13f
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
             gravity = Gravity.CENTER
             setTextColor(muted)
             background = shape(panel, 14)
@@ -465,8 +592,13 @@ class MainActivity : AppCompatActivity() {
                 text = tab
                 textSize = 10f
                 gravity = Gravity.CENTER
+                typeface = Typeface.create(
+                    "sans-serif-medium",
+                    Typeface.NORMAL
+                )
                 setTextColor(if (name == currentTab) gold else muted)
                 setPadding(dp(2), dp(5), dp(2), dp(5))
+
                 setOnClickListener {
                     when (name) {
                         "Mwanzo" -> showHome()
@@ -575,6 +707,11 @@ class MainActivity : AppCompatActivity() {
             .also { exo ->
                 playerView.player = exo
 
+                // Hakikisha muda hauonekani tena baada ya player kuanza.
+                playerView.post {
+                    hidePlayerTimeLabels()
+                }
+
                 exo.addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         status.text = when (state) {
@@ -608,9 +745,14 @@ class MainActivity : AppCompatActivity() {
             this.text = text
             textSize = size
             setTextColor(color)
-            if (bold) {
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-            }
+
+            typeface = Typeface.create(
+                if (bold) "sans-serif-bold" else "sans-serif",
+                Typeface.NORMAL
+            )
+
+            includeFontPadding = false
+            letterSpacing = 0.01f
         }
     }
 
