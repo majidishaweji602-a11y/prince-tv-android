@@ -1,17 +1,22 @@
-
 package com.princetv.app
 
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -37,56 +42,129 @@ import org.json.JSONObject
 @UnstableApi
 class MainActivity : AppCompatActivity() {
 
-    data class Channel(
+    private data class Channel(
         val name: String,
         val category: String,
-        val streamUrl: String
+        val streamUrl: String,
+        val icon: String
+    )
+
+    private data class HeroSlide(
+        val eyebrow: String,
+        val title: String,
+        val description: String,
+        val colors: IntArray
     )
 
     private val dark = Color.rgb(8, 9, 14)
     private val panel = Color.rgb(24, 25, 34)
+    private val panelLight = Color.rgb(35, 35, 44)
     private val gold = Color.rgb(224, 184, 78)
     private val white = Color.WHITE
-    private val muted = Color.LTGRAY
+    private val muted = Color.rgb(178, 179, 188)
 
     private val channels = mutableListOf<Channel>()
 
+    private lateinit var rootFrame: FrameLayout
+    private lateinit var appShell: LinearLayout
     private lateinit var content: LinearLayout
+    private lateinit var bottomNavigation: LinearLayout
+    private lateinit var heroCard: LinearLayout
+    private lateinit var heroEyebrow: TextView
+    private lateinit var heroTitle: TextView
+    private lateinit var heroDescription: TextView
+    private lateinit var heroIndicators: LinearLayout
     private lateinit var status: TextView
     private lateinit var playerView: PlayerView
 
     private var player: ExoPlayer? = null
-    private var currentTab = "Mwanzo"
+    private var playerContainer: FrameLayout? = null
+    private var fullScreenButton: TextView? = null
+    private var originalPlayerParent: ViewGroup? = null
+    private var originalPlayerIndex = -1
+    private var originalPlayerLayoutParams: ViewGroup.LayoutParams? = null
+    private var isFullScreen = false
     private var autoRotateEnabled = false
+    private var orientationBeforeFullScreen = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private var currentTab = "Mwanzo"
+    private var heroSlideIndex = 0
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val heroSlides = listOf(
+        HeroSlide(
+            "KARIBU PRINCE TV",
+            "BURUDANI YAKO,\nSEHEMU MOJA",
+            "Fungua PRINCE TV na uchague unachopenda kutazama.",
+            intArrayOf(Color.rgb(91, 62, 18), Color.rgb(39, 31, 22), panel)
+        ),
+        HeroSlide(
+            "LIVE ENTERTAINMENT",
+            "Tazama LIVE TV",
+            "Chagua channel kwenye orodha na uanze kutazama.",
+            intArrayOf(Color.rgb(46, 54, 72), Color.rgb(29, 30, 42), panel)
+        ),
+        HeroSlide(
+            "MOVIES & SERIES",
+            "FILAMU NA VIPINDI",
+            "Sehemu ya filamu na series imeandaliwa kwa ajili ya maudhui yajayo.",
+            intArrayOf(Color.rgb(79, 42, 52), Color.rgb(39, 28, 37), panel)
+        )
+    )
+
+    private val slideshowRunnable = object : Runnable {
+        override fun run() {
+            if (currentTab == "Mwanzo" && ::heroCard.isInitialized) {
+                heroSlideIndex = (heroSlideIndex + 1) % heroSlides.size
+                updateHeroSlide()
+                handler.postDelayed(this, 5000L)
+            }
+        }
+    }
+
+    private val hideFullScreenButtonRunnable = Runnable {
+        if (isFullScreen) fullScreenButton?.visibility = View.GONE
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         window.statusBarColor = dark
         window.navigationBarColor = dark
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         loadChannels()
 
-        val main = LinearLayout(this).apply {
+        rootFrame = FrameLayout(this).apply {
+            setBackgroundColor(dark)
+        }
+
+        appShell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(dark)
         }
 
-        main.addView(createHeader())
+        appShell.addView(createHeader())
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
         }
 
         content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(24))
+            setPadding(dp(16), dp(8), dp(16), dp(26))
         }
 
-        scroll.addView(content)
+        scroll.addView(
+            content,
+            ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
 
-        main.addView(
+        appShell.addView(
             scroll,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -95,175 +173,285 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        main.addView(createBottomNavigation())
-        setContentView(main)
+        appShell.addView(createBottomNavigation())
+        rootFrame.addView(
+            appShell,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
 
+        setContentView(rootFrame)
         showHome()
     }
 
     private fun loadChannels() {
+        channels.clear()
         try {
-            val text = assets.open("channels.json")
+            val jsonText = assets.open("channels.json")
                 .bufferedReader()
                 .use { it.readText() }
+            val array = JSONObject(jsonText).getJSONArray("channels")
 
-            val array = JSONObject(text).getJSONArray("channels")
-
-            channels.clear()
-
-            for (i in 0 until array.length()) {
-                val item = array.getJSONObject(i)
-
+            for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
                 channels.add(
                     Channel(
                         name = item.optString("name", "Channel"),
                         category = item.optString("category", "TV"),
-                        streamUrl = item.optString("streamUrl", "").trim()
+                        streamUrl = item.optString("streamUrl", "").trim(),
+                        icon = item.optString("icon", "tv")
                     )
                 )
             }
-        } catch (e: Exception) {
+        } catch (error: Exception) {
             Toast.makeText(
                 this,
-                "Tatizo kusoma channels.json",
+                "Imeshindikana kusoma channels.json",
                 Toast.LENGTH_LONG
             ).show()
         }
     }
 
-    // HEADER YENYE LOGO MPYA
     private fun createHeader(): View {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(13), dp(18), dp(13))
+            setPadding(dp(16), dp(10), dp(16), dp(10))
             setBackgroundColor(dark)
         }
 
         val logo = ImageView(this).apply {
             setImageResource(R.drawable.ic_prince_tv)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(2), dp(2), dp(2), dp(2))
+            contentDescription = "PRINCE TV logo"
         }
+        header.addView(logo, LinearLayout.LayoutParams(dp(50), dp(50)))
 
-        header.addView(
-            logo,
-            LinearLayout.LayoutParams(dp(52), dp(52))
-        )
-
-        val names = LinearLayout(this).apply {
+        val brand = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), 0, 0, 0)
+            setPadding(dp(11), 0, 0, 0)
         }
+        brand.addView(label("PRINCE TV", 21f, gold, true))
+        brand.addView(label("TANZANIA ENTERTAINMENT", 9f, muted, true))
+        header.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
 
-        names.addView(label("PRINCE TV", 21f, gold, true))
-        names.addView(label("TANZANIA ENTERTAINMENT", 9f, muted))
-
-        header.addView(
-            names,
-            LinearLayout.LayoutParams(0, -2, 1f)
-        )
-
-        val live = TextView(this).apply {
-            text = "● LIVE"
-            textSize = 11f
-            typeface = Typeface.create(
-                "sans-serif-bold",
-                Typeface.NORMAL
-            )
+        val liveTag = TextView(this).apply {
+            text = "●  LIVE"
+            textSize = 10f
+            typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
             setTextColor(gold)
             setPadding(dp(11), dp(8), dp(11), dp(8))
-            background = shape(panel, 30)
+            background = shape(panel, 24)
         }
-
-        header.addView(live)
+        header.addView(liveTag)
         return header
     }
 
     private fun showHome() {
+        leavePlayerAndRelease()
+        stopSlideshow()
         currentTab = "Mwanzo"
         content.removeAllViews()
 
-        val hero = LinearLayout(this).apply {
+        buildHero()
+        addSectionTitle("LIVE TV", "Chagua channel yako")
+        addChannelCards(content)
+
+        addSectionTitle("MOVIES", "Filamu zitakazopatikana")
+        addFeatureCards(
+            content,
+            listOf("ACTION", "DRAMA", "FAMILY", "COMEDY"),
+            "MOVIES"
+        )
+
+        addSectionTitle("SERIES", "Vipindi na mfululizo")
+        addFeatureCards(
+            content,
+            listOf("LOCAL SERIES", "DRAMA SERIES", "DOCUMENTARY", "KIDS SERIES"),
+            "SERIES"
+        )
+
+        addSectionTitle("SPORTS", "Channel za michezo")
+        addCategoryChannelCards(content, "Sports")
+
+        refreshNavigation()
+        startSlideshow()
+    }
+
+    private fun buildHero() {
+        heroCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(20), dp(18), dp(20))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(
-                    Color.rgb(75, 55, 18),
-                    Color.rgb(29, 25, 20),
-                    panel
-                )
-            ).apply {
-                cornerRadius = dp(18).toFloat()
-            }
+            setPadding(dp(20), dp(20), dp(20), dp(18))
+            background = heroBackground(heroSlides[heroSlideIndex].colors)
         }
 
-        hero.addView(label("KARIBU PRINCE TV", 12f, gold, true))
-        hero.addView(label("Burudani yako, sehemu moja.", 21f, white, true))
-        hero.addView(label("Tazama matangazo ya moja kwa moja.", 12f, muted))
+        heroEyebrow = label("", 10f, gold, true)
+        heroTitle = label("", 27f, white, true).apply {
+            letterSpacing = 0.015f
+            setPadding(0, dp(8), 0, dp(7))
+        }
+        heroDescription = label("", 12f, muted).apply {
+            maxLines = 2
+        }
+
+        heroCard.addView(heroEyebrow)
+        heroCard.addView(heroTitle)
+        heroCard.addView(heroDescription)
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(14), 0, 0)
+        }
 
         val watch = Button(this).apply {
             text = "▶  TAZAMA LIVE TV"
             isAllCaps = false
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
             setTextColor(Color.BLACK)
-            setBackgroundColor(gold)
+            background = shape(gold, 9)
+            setPadding(dp(12), 0, dp(12), 0)
             setOnClickListener { showLive() }
         }
+        actions.addView(watch, LinearLayout.LayoutParams(-2, dp(44)))
 
-        hero.addView(
-            watch,
-            LinearLayout.LayoutParams(-1, dp(48)).apply {
-                topMargin = dp(15)
-            }
-        )
+        val explore = TextView(this).apply {
+            text = "  Vinjari  ›"
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(white)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(9), 0, dp(8), 0)
+            setOnClickListener { showLive() }
+        }
+        actions.addView(explore)
+        heroCard.addView(actions)
+
+        heroIndicators = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(13), 0, 0)
+        }
+        heroCard.addView(heroIndicators)
 
         content.addView(
-            hero,
-            LinearLayout.LayoutParams(-1, dp(205))
+            heroCard,
+            LinearLayout.LayoutParams(-1, dp(245)).apply {
+                bottomMargin = dp(7)
+            }
         )
+        updateHeroSlide()
+    }
 
-        addSectionTitle("LIVE TV", "Tazama channel")
-        addChannelCards(content)
+    private fun updateHeroSlide() {
+        if (!::heroCard.isInitialized) return
+        val slide = heroSlides[heroSlideIndex]
+        heroCard.background = heroBackground(slide.colors)
+        heroEyebrow.text = slide.eyebrow
+        heroTitle.text = slide.title
+        heroDescription.text = slide.description
+        heroIndicators.removeAllViews()
 
-        addSectionTitle("MOVIES", "Filamu")
-        addMovieCards(content)
+        for (index in heroSlides.indices) {
+            val dot = TextView(this).apply {
+                text = if (index == heroSlideIndex) "●" else "○"
+                textSize = if (index == heroSlideIndex) 11f else 9f
+                setTextColor(if (index == heroSlideIndex) gold else muted)
+                setPadding(0, 0, dp(8), 0)
+                setOnClickListener {
+                    heroSlideIndex = index
+                    updateHeroSlide()
+                    startSlideshow()
+                }
+            }
+            heroIndicators.addView(dot)
+        }
+    }
 
-        addSectionTitle("SERIES", "Vipindi")
-        addPlaceholder("Series zitakuja hapa")
+    private fun startSlideshow() {
+        stopSlideshow()
+        if (currentTab == "Mwanzo") handler.postDelayed(slideshowRunnable, 5000L)
+    }
+
+    private fun stopSlideshow() {
+        handler.removeCallbacks(slideshowRunnable)
     }
 
     private fun showLive() {
+        stopSlideshow()
+        if (isFullScreen) exitFullScreen()
+        if (::playerView.isInitialized) releasePlayer()
+
         currentTab = "Live TV"
         content.removeAllViews()
-
         addSectionTitle("LIVE TV", "Chagua channel uanze kutazama")
 
         playerView = PlayerView(this).apply {
             useController = true
+            controllerShowTimeoutMs = 3500
+            controllerHideOnTouch = true
             setBackgroundColor(Color.BLACK)
             setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT)
+            keepScreenOn = true
+        }
 
-            post {
-                hidePlayerTimeLabels()
+        val playerFrame = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+        }
+        playerFrame.addView(
+            playerView,
+            FrameLayout.LayoutParams(-1, -1)
+        )
+
+        fullScreenButton = TextView(this).apply {
+            text = "⛶"
+            textSize = 25f
+            gravity = Gravity.CENTER
+            setTextColor(white)
+            background = shape(Color.argb(190, 12, 12, 16), 8)
+            contentDescription = "Fungua full screen"
+            elevation = dp(5).toFloat()
+            setPadding(dp(5), 0, dp(5), 0)
+            setOnClickListener {
+                if (isFullScreen) exitFullScreen() else enterFullScreen()
             }
         }
 
+        playerFrame.addView(
+            fullScreenButton,
+            FrameLayout.LayoutParams(dp(46), dp(42), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(8)
+                marginEnd = dp(8)
+            }
+        )
+
+        playerView.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN && isFullScreen) {
+                revealFullScreenButton()
+            }
+            false
+        }
+
+        playerContainer = playerFrame
         content.addView(
-            playerView,
-            LinearLayout.LayoutParams(-1, dp(260)).apply {
-                bottomMargin = dp(6)
+            playerFrame,
+            LinearLayout.LayoutParams(-1, dp(238)).apply {
+                bottomMargin = dp(5)
             }
         )
 
         addPlayerSizeControls()
 
-        status = label("Chagua channel kuanza kutazama", 12f, muted)
+        status = label("Chagua channel kuanza kutazama", 12f, muted).apply {
+            setPadding(0, dp(3), 0, dp(8))
+        }
         content.addView(status)
 
-        addSectionTitle("CHANNELS", "Channel zote")
+        addSectionTitle("CHANNELS", "Channel zote zilizopo")
         addChannelCards(content)
 
         val manual = EditText(this).apply {
@@ -271,165 +459,205 @@ class MainActivity : AppCompatActivity() {
             setHintTextColor(Color.GRAY)
             setTextColor(white)
             textSize = 14f
-            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
             setSingleLine(true)
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setPadding(dp(13), dp(8), dp(13), dp(8))
             background = shape(panel, 10)
         }
-
         content.addView(
             manual,
             LinearLayout.LayoutParams(-1, dp(50)).apply {
-                topMargin = dp(14)
+                topMargin = dp(12)
+                bottomMargin = dp(8)
             }
         )
 
-        val play = Button(this).apply {
+        val playButton = Button(this).apply {
             text = "CHEZA URL"
             isAllCaps = false
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            textSize = 12f
+            typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
             setTextColor(Color.BLACK)
-            setBackgroundColor(gold)
-            setOnClickListener {
-                playUrl(manual.text.toString().trim())
-            }
+            background = shape(gold, 9)
+            setOnClickListener { playUrl(manual.text.toString().trim()) }
         }
+        content.addView(playButton, LinearLayout.LayoutParams(-1, dp(46)))
 
-        content.addView(
-            play,
-            LinearLayout.LayoutParams(-1, dp(48))
-        )
-    }
-
-    private fun hidePlayerTimeLabels() {
-        val positionId = resources.getIdentifier(
-            "exo_position", "id", packageName
-        )
-
-        val durationId = resources.getIdentifier(
-            "exo_duration", "id", packageName
-        )
-
-        if (positionId != 0) {
-            playerView.findViewById<View>(positionId)?.visibility = View.GONE
-        }
-
-        if (durationId != 0) {
-            playerView.findViewById<View>(durationId)?.visibility = View.GONE
-        }
+        refreshNavigation()
     }
 
     private fun addPlayerSizeControls() {
-        val horizontal = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-        }
-
-        val controls = LinearLayout(this).apply {
+        // Icon-only display controls: no PANUA/JAZA/RUDISHA/AUTO ROTATE text.
+        val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(5), 0, dp(10))
+            setPadding(0, dp(5), 0, dp(8))
         }
 
-        fun addControl(title: String, action: () -> Unit) {
-            val button = Button(this).apply {
-                text = title
-                isAllCaps = false
-                textSize = 10f
-                typeface = Typeface.create(
-                    "sans-serif-medium",
-                    Typeface.NORMAL
-                )
-                setTextColor(Color.BLACK)
-                background = shape(gold, 9)
-                setPadding(dp(8), 0, dp(8), 0)
+        fun addIcon(symbol: String, description: String, action: () -> Unit) {
+            val icon = TextView(this).apply {
+                text = symbol
+                textSize = 20f
+                gravity = Gravity.CENTER
+                setTextColor(if (description == "Auto rotate" && autoRotateEnabled) gold else white)
+                contentDescription = description
+                background = shape(panelLight, 24)
+                isClickable = true
+                isFocusable = true
                 setOnClickListener { action() }
             }
-
-            controls.addView(
-                button,
-                LinearLayout.LayoutParams(dp(92), dp(42)).apply {
-                    marginEnd = dp(7)
+            row.addView(
+                icon,
+                LinearLayout.LayoutParams(dp(43), dp(40)).apply {
+                    marginEnd = dp(9)
                 }
             )
         }
 
-        addControl("PANUA") {
-            playerView.setResizeMode(
-                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            )
+        addIcon("⤢", "Zoom") {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         }
-
-        addControl("JAZA") {
-            playerView.setResizeMode(
-                AspectRatioFrameLayout.RESIZE_MODE_FILL
-            )
+        addIcon("▣", "Fill") {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
         }
-
-        addControl("RUDISHA") {
-            playerView.setResizeMode(
-                AspectRatioFrameLayout.RESIZE_MODE_FIT
-            )
-            autoRotateEnabled = false
-            requestedOrientation =
-                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        addIcon("⊡", "Fit") {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
-
-        addControl("AUTO ROTATE") {
+        addIcon("⟳", "Auto rotate") {
             autoRotateEnabled = !autoRotateEnabled
-
             requestedOrientation = if (autoRotateEnabled) {
                 ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            } else if (isFullScreen) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             } else {
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
-
+            val button = row.getChildAt(row.childCount - 1) as? TextView
+            button?.setTextColor(if (autoRotateEnabled) gold else white)
             Toast.makeText(
                 this,
-                if (autoRotateEnabled) {
-                    "Auto rotate imewashwa"
-                } else {
-                    "Auto rotate imezimwa"
-                },
+                if (autoRotateEnabled) "Auto rotate imewashwa" else "Auto rotate imezimwa",
                 Toast.LENGTH_SHORT
             ).show()
         }
 
-        horizontal.addView(controls)
+        content.addView(row, LinearLayout.LayoutParams(-1, dp(49)))
+    }
 
-        content.addView(
-            horizontal,
-            LinearLayout.LayoutParams(-1, dp(52))
+    private fun enterFullScreen() {
+        val container = playerContainer ?: return
+        val parent = container.parent as? ViewGroup ?: return
+        originalPlayerParent = parent
+        originalPlayerIndex = parent.indexOfChild(container)
+        originalPlayerLayoutParams = container.layoutParams
+        orientationBeforeFullScreen = requestedOrientation
+        parent.removeView(container)
+
+        appShell.visibility = View.GONE
+        rootFrame.addView(
+            container,
+            FrameLayout.LayoutParams(-1, -1, Gravity.CENTER)
         )
+        isFullScreen = true
+        // Like YouTube: landscape video takes the entire display, with system bars hidden.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            )
+        revealFullScreenButton()
+    }
+
+    private fun exitFullScreen() {
+        if (!isFullScreen) return
+        val container = playerContainer
+        if (container != null) {
+            (container.parent as? ViewGroup)?.removeView(container)
+            val parent = originalPlayerParent
+            val params = originalPlayerLayoutParams
+            if (parent != null && params != null) {
+                val index = originalPlayerIndex.coerceIn(0, parent.childCount)
+                parent.addView(container, index, params)
+            }
+        }
+
+        appShell.visibility = View.VISIBLE
+        isFullScreen = false
+        requestedOrientation = orientationBeforeFullScreen
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        handler.removeCallbacks(hideFullScreenButtonRunnable)
+        fullScreenButton?.visibility = View.VISIBLE
+        originalPlayerParent = null
+        originalPlayerLayoutParams = null
+        originalPlayerIndex = -1
+    }
+
+    private fun revealFullScreenButton() {
+        fullScreenButton?.visibility = View.VISIBLE
+        handler.removeCallbacks(hideFullScreenButtonRunnable)
+        handler.postDelayed(hideFullScreenButtonRunnable, 3500L)
     }
 
     private fun showMovies() {
+        leavePlayerAndRelease()
+        stopSlideshow()
         currentTab = "Movies"
         content.removeAllViews()
-        addSectionTitle("MOVIES", "Filamu")
-        addMovieCards(content)
-        addPlaceholder("Picha na filamu zitaongezwa hapa")
+        addSectionTitle("MOVIES", "Filamu na burudani")
+        addFeatureCards(
+            content,
+            listOf("ACTION", "DRAMA", "FAMILY", "COMEDY", "ADVENTURE", "ROMANCE"),
+            "MOVIES"
+        )
+        addInfoPanel("SEHEMU YA MOVIES", "Orodha ya filamu itaongezwa hapa baada ya kuwekwa maudhui na ruhusa zake.")
+        refreshNavigation()
+    }
+
+    private fun showSeries() {
+        leavePlayerAndRelease()
+        stopSlideshow()
+        currentTab = "Series"
+        content.removeAllViews()
+        addSectionTitle("SERIES", "Vipindi na mfululizo")
+        addFeatureCards(
+            content,
+            listOf("LOCAL SERIES", "DRAMA SERIES", "DOCUMENTARY", "KIDS SERIES", "COMEDY", "ACTION"),
+            "SERIES"
+        )
+        addInfoPanel("SEHEMU YA SERIES", "Vipindi vitaonekana hapa vitakapoongezwa kwenye maktaba ya PRINCE TV.")
+        refreshNavigation()
     }
 
     private fun showPackages() {
+        leavePlayerAndRelease()
+        stopSlideshow()
         currentTab = "Vifurushi"
         content.removeAllViews()
         addSectionTitle("VIFURUSHI", "Chagua kifurushi")
-        addPlaceholder("Vifurushi vya PRINCE TV vitaonekana hapa")
+        addInfoPanel("VIFURUSHI VYA PRINCE TV", "Taarifa za vifurushi zitaonyeshwa hapa zitakapowekwa.")
+        refreshNavigation()
     }
 
     private fun showAccount() {
+        leavePlayerAndRelease()
+        stopSlideshow()
         currentTab = "Akaunti"
         content.removeAllViews()
         addSectionTitle("AKAUNTI", "Karibu PRINCE TV")
-        addPlaceholder("Taarifa za akaunti zitaonekana hapa")
+        addInfoPanel("AKAUNTI YAKO", "Sehemu ya taarifa za akaunti itaongezwa hapa.")
+        refreshNavigation()
     }
 
     private fun addChannelCards(parent: LinearLayout) {
-        val horizontal = HorizontalScrollView(this).apply {
+        val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
         }
-
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -438,193 +666,202 @@ class MainActivity : AppCompatActivity() {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(10), dp(12), dp(10), dp(12))
-                background = shape(panel, 14)
-                setOnClickListener {
-                    playChannel(channel)
-                }
+                setPadding(dp(9), dp(11), dp(9), dp(10))
+                background = shape(panel, 13)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { playChannel(channel) }
             }
 
-            val icon = TextView(this).apply {
-                text = "▶"
-                textSize = 25f
+            val logo = TextView(this).apply {
+                text = channelInitials(channel.name)
+                textSize = 18f
                 gravity = Gravity.CENTER
-                setTextColor(gold)
-                typeface = Typeface.create(
-                    "sans-serif-medium",
-                    Typeface.NORMAL
-                )
-                background = shape(Color.rgb(39, 37, 31), 50)
+                typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
+                setTextColor(if (channel.icon == "news") white else gold)
+                background = logoBackground(channel.icon)
             }
+            card.addView(logo, LinearLayout.LayoutParams(dp(58), dp(58)))
 
             card.addView(
-                icon,
-                LinearLayout.LayoutParams(dp(55), dp(55))
-            )
-
-            card.addView(
-                label(channel.name, 14f, white, true).apply {
+                label(channel.name, 13f, white, true).apply {
                     gravity = Gravity.CENTER
-                    setPadding(0, dp(9), 0, dp(3))
+                    maxLines = 2
+                    setPadding(0, dp(8), 0, dp(3))
                 }
             )
-
-            card.addView(
-                label(channel.category.uppercase(), 10f, gold)
-            )
-
+            card.addView(label(channel.category.uppercase(), 9f, gold, true))
             card.addView(
                 label(
-                    if (channel.streamUrl.isNotBlank()) "● LIVE" else "TV",
-                    10f,
-                    if (channel.streamUrl.isNotBlank()) gold else muted
-                ).apply {
-                    setPadding(0, dp(7), 0, 0)
-                }
+                    if (channel.streamUrl.isNotBlank()) "●  LIVE" else "HAIPO",
+                    9f,
+                    if (channel.streamUrl.isNotBlank()) gold else muted,
+                    true
+                ).apply { setPadding(0, dp(7), 0, 0) }
             )
 
             row.addView(
                 card,
-                LinearLayout.LayoutParams(dp(140), dp(155)).apply {
-                    rightMargin = dp(10)
+                LinearLayout.LayoutParams(dp(137), dp(153)).apply {
+                    marginEnd = dp(9)
                 }
             )
         }
 
-        horizontal.addView(row)
-
-        parent.addView(
-            horizontal,
-            LinearLayout.LayoutParams(-1, dp(165))
-        )
+        scroll.addView(row)
+        parent.addView(scroll, LinearLayout.LayoutParams(-1, dp(160)))
     }
 
-    private fun addMovieCards(parent: LinearLayout) {
-        val horizontal = HorizontalScrollView(this).apply {
+    private fun addCategoryChannelCards(parent: LinearLayout, category: String) {
+        val matching = channels.filter { it.category.equals(category, ignoreCase = true) }
+        if (matching.isEmpty()) {
+            addInfoPanel("HAKUNA CHANNEL", "Hakuna channel za kundi hili kwa sasa.")
+            return
+        }
+
+        val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
         }
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-
-        val titles = listOf(
-            "MOVIE 01",
-            "MOVIE 02",
-            "MOVIE 03",
-            "MOVIE 04"
-        )
-
-        for (title in titles) {
-            val poster = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (channel in matching) {
+            val chip = TextView(this).apply {
+                text = "${channelInitials(channel.name)}  ${channel.name}"
+                textSize = 12f
+                typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
+                setTextColor(white)
                 gravity = Gravity.CENTER
-                background = shape(panel, 12)
-                setPadding(dp(8), dp(10), dp(8), dp(10))
+                background = shape(panel, 10)
+                setPadding(dp(13), dp(12), dp(13), dp(12))
+                setOnClickListener { playChannel(channel) }
             }
+            row.addView(chip, LinearLayout.LayoutParams(-2, dp(46)).apply {
+                marginEnd = dp(8)
+            })
+        }
+        scroll.addView(row)
+        parent.addView(scroll, LinearLayout.LayoutParams(-1, dp(53)))
+    }
 
-            poster.addView(label("🎬", 30f, gold))
-            poster.addView(label(title, 11f, white, true))
-
+    private fun addFeatureCards(parent: LinearLayout, titles: List<String>, type: String) {
+        val scroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for ((index, title) in titles.withIndex()) {
+            val artwork = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.BOTTOM or Gravity.START
+                setPadding(dp(12), dp(12), dp(10), dp(11))
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TL_BR,
+                    featureColors(index)
+                ).apply { cornerRadius = dp(13).toFloat() }
+            }
+            artwork.addView(
+                label(if (type == "MOVIES") "FILAMU" else "VIPINDI", 9f, gold, true)
+            )
+            artwork.addView(
+                label(title, 13f, white, true).apply {
+                    setPadding(0, dp(5), 0, dp(3))
+                    maxLines = 2
+                }
+            )
+            artwork.addView(label("ITAONGEZWA", 8f, muted, true))
             row.addView(
-                poster,
-                LinearLayout.LayoutParams(dp(115), dp(145)).apply {
-                    rightMargin = dp(10)
+                artwork,
+                LinearLayout.LayoutParams(dp(132), dp(151)).apply {
+                    marginEnd = dp(9)
                 }
             )
         }
+        scroll.addView(row)
+        parent.addView(scroll, LinearLayout.LayoutParams(-1, dp(158)))
+    }
 
-        horizontal.addView(row)
-        parent.addView(horizontal)
+    private fun addInfoPanel(title: String, message: String) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(15), dp(17), dp(15), dp(17))
+            background = shape(panel, 13)
+        }
+        box.addView(label(title, 13f, gold, true))
+        box.addView(label(message, 12f, muted).apply {
+            setPadding(0, dp(7), 0, 0)
+        })
+        content.addView(
+            box,
+            LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = dp(6)
+                bottomMargin = dp(10)
+            }
+        )
     }
 
     private fun addSectionTitle(title: String, subtitle: String) {
         content.addView(
             label(title, 18f, gold, true).apply {
-                setPadding(0, dp(18), 0, dp(3))
+                letterSpacing = 0.025f
+                setPadding(0, dp(17), 0, dp(4))
             }
         )
-
         content.addView(
-            label(subtitle, 12f, muted).apply {
+            label(subtitle, 11f, muted).apply {
                 setPadding(0, 0, 0, dp(10))
             }
         )
     }
 
-    private fun addPlaceholder(message: String) {
-        val box = TextView(this).apply {
-            text = message
-            textSize = 13f
-            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-            gravity = Gravity.CENTER
-            setTextColor(muted)
-            background = shape(panel, 14)
-            setPadding(dp(15), dp(25), dp(15), dp(25))
-        }
-
-        content.addView(
-            box,
-            LinearLayout.LayoutParams(-1, dp(95)).apply {
-                topMargin = dp(8)
-            }
-        )
-    }
-
     private fun createBottomNavigation(): View {
-        val nav = LinearLayout(this).apply {
+        bottomNavigation = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(3), dp(7), dp(3), dp(7))
+            setPadding(dp(2), dp(5), dp(2), dp(5))
             setBackgroundColor(Color.rgb(17, 18, 25))
+            elevation = dp(8).toFloat()
         }
 
         val tabs = listOf(
             "⌂\nMwanzo",
             "▶\nLive TV",
             "▣\nMovies",
+            "▤\nSeries",
             "◆\nVifurushi",
             "●\nAkaunti"
         )
 
         for (tab in tabs) {
             val name = tab.substringAfter("\n")
-
             val item = TextView(this).apply {
                 text = tab
-                textSize = 10f
+                textSize = 9f
                 gravity = Gravity.CENTER
-                typeface = Typeface.create(
-                    "sans-serif-medium",
-                    Typeface.NORMAL
-                )
+                typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
                 setTextColor(if (name == currentTab) gold else muted)
-                setPadding(dp(2), dp(5), dp(2), dp(5))
-
+                setPadding(dp(1), dp(5), dp(1), dp(5))
                 setOnClickListener {
                     when (name) {
                         "Mwanzo" -> showHome()
                         "Live TV" -> showLive()
                         "Movies" -> showMovies()
+                        "Series" -> showSeries()
                         "Vifurushi" -> showPackages()
                         "Akaunti" -> showAccount()
                     }
-                    refreshNavigation(nav)
                 }
             }
-
-            nav.addView(
+            bottomNavigation.addView(
                 item,
-                LinearLayout.LayoutParams(0, dp(52), 1f)
+                LinearLayout.LayoutParams(0, dp(50), 1f)
             )
         }
-
-        return nav
+        return bottomNavigation
     }
 
-    private fun refreshNavigation(nav: LinearLayout) {
-        for (i in 0 until nav.childCount) {
-            val item = nav.getChildAt(i) as TextView
+    private fun refreshNavigation() {
+        if (!::bottomNavigation.isInitialized) return
+        for (index in 0 until bottomNavigation.childCount) {
+            val item = bottomNavigation.getChildAt(index) as? TextView ?: continue
             val name = item.text.toString().substringAfter("\n")
             item.setTextColor(if (name == currentTab) gold else muted)
         }
@@ -640,17 +877,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        if (currentTab != "Live TV") {
-            showLive()
-        }
-
+        if (currentTab != "Live TV") showLive()
         status.text = "Inaunganisha ${channel.name}..."
         playUrl(channel.streamUrl)
     }
 
     private fun detectMimeType(url: String): String? {
         val uri = Uri.parse(url)
-
         val extension = (
             uri.getQueryParameter("extension")
                 ?: uri.lastPathSegment?.substringAfterLast('.', "")
@@ -669,21 +902,13 @@ class MainActivity : AppCompatActivity() {
     private fun playUrl(url: String) {
         if (
             url.isBlank() ||
-            !(url.startsWith("https://", true) ||
-              url.startsWith("http://", true))
+            !(url.startsWith("https://", true) || url.startsWith("http://", true))
         ) {
-            Toast.makeText(
-                this,
-                "Weka URL sahihi",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(this, "Weka URL sahihi inayoanza na http:// au https://", Toast.LENGTH_LONG).show()
             return
         }
 
-        if (!::playerView.isInitialized) {
-            showLive()
-        }
-
+        if (!::playerView.isInitialized || currentTab != "Live TV") showLive()
         releasePlayer()
         status.text = "Inaunganisha kwenye server..."
 
@@ -702,61 +927,36 @@ class MainActivity : AppCompatActivity() {
                 )
             )
 
-        val extractors = DefaultExtractorsFactory()
-            .setTsExtractorFlags(
-                DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
-                    DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
-            )
+        val extractors = DefaultExtractorsFactory().setTsExtractorFlags(
+            DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
+                DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
+        )
 
-        val mediaSourceFactory =
-            DefaultMediaSourceFactory(this, extractors)
-                .setDataSourceFactory(httpFactory)
-                .setLoadErrorHandlingPolicy(
-                    DefaultLoadErrorHandlingPolicy(3)
-                )
+        val mediaSourceFactory = DefaultMediaSourceFactory(this, extractors)
+            .setDataSourceFactory(httpFactory)
+            .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(3))
 
         val itemBuilder = MediaItem.Builder().setUri(url)
-
-        detectMimeType(url)?.let {
-            itemBuilder.setMimeType(it)
-        }
+        detectMimeType(url)?.let { itemBuilder.setMimeType(it) }
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .also { exo ->
-
                 playerView.player = exo
-
-                playerView.post {
-                    hidePlayerTimeLabels()
-                }
-
                 exo.addListener(object : Player.Listener {
-
-                    override fun onPlaybackStateChanged(state: Int) {
-                        status.text = when (state) {
-                            Player.STATE_BUFFERING ->
-                                "Inapokea data..."
-
-                            Player.STATE_READY ->
-                                "Inacheza vizuri"
-
-                            Player.STATE_ENDED ->
-                                "Stream imeisha"
-
-                            Player.STATE_IDLE ->
-                                "Player imesimama"
-
-                            else ->
-                                "Inaandaa video..."
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        status.text = when (playbackState) {
+                            Player.STATE_BUFFERING -> "Inapokea data..."
+                            Player.STATE_READY -> "Inacheza"
+                            Player.STATE_ENDED -> "Stream imeisha"
+                            Player.STATE_IDLE -> "Player imesimama"
+                            else -> "Inaandaa video..."
                         }
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        status.text =
-                            "Imeshindwa kucheza: ${error.errorCodeName}"
-
+                        status.text = "Imeshindwa kucheza: ${error.errorCodeName}"
                         Toast.makeText(
                             this@MainActivity,
                             "Tatizo la stream: ${error.errorCodeName}",
@@ -771,6 +971,59 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
+    private fun leavePlayerAndRelease() {
+        if (isFullScreen) exitFullScreen()
+        if (::playerView.isInitialized) releasePlayer()
+    }
+
+    private fun releasePlayer() {
+        if (::playerView.isInitialized) {
+            playerView.player = null
+            playerView.keepScreenOn = false
+        }
+        player?.release()
+        player = null
+    }
+
+    private fun channelInitials(name: String): String {
+        val words = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        return when {
+            words.size >= 2 -> "${words[0].first()}${words[1].first()}".uppercase()
+            words.isNotEmpty() -> words[0].take(3).uppercase()
+            else -> "TV"
+        }
+    }
+
+    private fun logoBackground(icon: String): GradientDrawable {
+        val colors = when (icon.lowercase()) {
+            "news" -> intArrayOf(Color.rgb(35, 62, 86), Color.rgb(18, 34, 51))
+            "sports" -> intArrayOf(Color.rgb(72, 57, 23), Color.rgb(42, 35, 18))
+            "kids" -> intArrayOf(Color.rgb(65, 43, 79), Color.rgb(37, 28, 49))
+            "movie" -> intArrayOf(Color.rgb(83, 42, 46), Color.rgb(45, 27, 33))
+            else -> intArrayOf(Color.rgb(74, 61, 34), Color.rgb(39, 34, 24))
+        }
+        return GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
+            cornerRadius = dp(12).toFloat()
+            setStroke(dp(1), Color.argb(75, 224, 184, 78))
+        }
+    }
+
+    private fun featureColors(index: Int): IntArray {
+        return when (index % 4) {
+            0 -> intArrayOf(Color.rgb(91, 57, 35), Color.rgb(37, 29, 27))
+            1 -> intArrayOf(Color.rgb(53, 58, 83), Color.rgb(27, 29, 43))
+            2 -> intArrayOf(Color.rgb(73, 47, 67), Color.rgb(35, 27, 39))
+            else -> intArrayOf(Color.rgb(63, 65, 40), Color.rgb(31, 34, 25))
+        }
+    }
+
+    private fun heroBackground(colors: IntArray): GradientDrawable {
+        return GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors).apply {
+            cornerRadius = dp(18).toFloat()
+            setStroke(dp(1), Color.argb(45, 224, 184, 78))
+        }
+    }
+
     private fun label(
         text: String,
         size: Float,
@@ -781,12 +1034,10 @@ class MainActivity : AppCompatActivity() {
             this.text = text
             textSize = size
             setTextColor(color)
-
             typeface = Typeface.create(
                 if (bold) "sans-serif-bold" else "sans-serif",
                 Typeface.NORMAL
             )
-
             includeFontPadding = false
             letterSpacing = 0.01f
         }
@@ -799,17 +1050,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
+    override fun onResume() {
+        super.onResume()
+        if (currentTab == "Mwanzo") startSlideshow()
     }
 
-    private fun releasePlayer() {
-        if (::playerView.isInitialized) {
-            playerView.player = null
-        }
-
-        player?.release()
-        player = null
+    override fun onPause() {
+        stopSlideshow()
+        super.onPause()
     }
 
     override fun onStop() {
@@ -817,7 +1068,25 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        rootFrame.requestLayout()
+        playerContainer?.requestLayout()
+    }
+
+    @Deprecated("Deprecated in Android API; retained for Back compatibility")
+    override fun onBackPressed() {
+        if (isFullScreen) {
+            exitFullScreen()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     override fun onDestroy() {
+        stopSlideshow()
+        handler.removeCallbacks(hideFullScreenButtonRunnable)
+        if (isFullScreen) exitFullScreen()
         releasePlayer()
         super.onDestroy()
     }
