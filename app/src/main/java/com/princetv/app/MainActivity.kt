@@ -336,7 +336,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         brand.addView(
-            label("TANZANIA ENTERTAINMENT", 9f, muted, true)
+            label("Burudani Bila Kikomo", 14f, muted, false).apply { letterSpacing = 0.05f; setPadding(0, dp(4), 0, 0) }
         )
 
         header.addView(
@@ -344,19 +344,19 @@ class MainActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, -2, 1f)
         )
 
-        val liveTag = TextView(this).apply {
-            text = "●  LIVE"
-            textSize = 10f
-            typeface = Typeface.create(
-                "sans-serif-bold",
-                Typeface.NORMAL
-            )
+        val profileBtn = TextView(this).apply {
+            text = "●"
+            textSize = 22f
+            gravity = Gravity.CENTER
             setTextColor(gold)
-            setPadding(dp(11), dp(8), dp(11), dp(8))
-            background = shape(panel, 24)
+            background = shape(panel, 40)
+            contentDescription = "Akaunti"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { showAccount() }
         }
 
-        header.addView(liveTag)
+        header.addView(profileBtn, LinearLayout.LayoutParams(dp(60), dp(60)))
         return header
     }
 
@@ -430,14 +430,14 @@ class MainActivity : AppCompatActivity() {
         val watch = Button(this).apply {
             text = "▶  TAZAMA LIVE TV"
             isAllCaps = false
-            textSize = 13f
+            textSize = 15f
             typeface = Typeface.create(
                 "sans-serif-bold",
                 Typeface.NORMAL
             )
             setTextColor(Color.BLACK)
-            background = shape(gold, 9)
-            setPadding(dp(14), 0, dp(14), 0)
+            background = shape(gold, 18)
+            setPadding(dp(22), 0, dp(22), 0)
             setOnClickListener {
                 showLive()
             }
@@ -445,12 +445,12 @@ class MainActivity : AppCompatActivity() {
 
         actions.addView(
             watch,
-            LinearLayout.LayoutParams(-2, dp(48))
+            LinearLayout.LayoutParams(-2, dp(56))
         )
 
         val explore = TextView(this).apply {
             text = "  Vinjari  ›"
-            textSize = 12f
+            textSize = 14f
             typeface = Typeface.create(
                 "sans-serif-medium",
                 Typeface.NORMAL
@@ -665,13 +665,13 @@ class MainActivity : AppCompatActivity() {
         val playButton = Button(this).apply {
             text = "CHEZA URL"
             isAllCaps = false
-            textSize = 12f
+            textSize = 15f
             typeface = Typeface.create(
                 "sans-serif-bold",
                 Typeface.NORMAL
             )
             setTextColor(Color.BLACK)
-            background = shape(gold, 9)
+            background = shape(gold, 18)
 
             setOnClickListener {
                 playUrl(manual.text.toString().trim())
@@ -680,7 +680,7 @@ class MainActivity : AppCompatActivity() {
 
         content.addView(
             playButton,
-            LinearLayout.LayoutParams(-1, dp(46))
+            LinearLayout.LayoutParams(-1, dp(56))
         )
 
         refreshNavigation()
@@ -700,7 +700,7 @@ class MainActivity : AppCompatActivity() {
         ) {
             val icon = TextView(this).apply {
                 text = symbol
-                textSize = 20f
+                textSize = 24f
                 gravity = Gravity.CENTER
 
                 setTextColor(
@@ -727,8 +727,8 @@ class MainActivity : AppCompatActivity() {
             row.addView(
                 icon,
                 LinearLayout.LayoutParams(
-                    dp(43),
-                    dp(40)
+                    dp(52),
+                    dp(48)
                 ).apply {
                     marginEnd = dp(9)
                 }
@@ -781,7 +781,7 @@ class MainActivity : AppCompatActivity() {
 
         content.addView(
             row,
-            LinearLayout.LayoutParams(-1, dp(49))
+            LinearLayout.LayoutParams(-1, dp(58))
         )
     }
 
