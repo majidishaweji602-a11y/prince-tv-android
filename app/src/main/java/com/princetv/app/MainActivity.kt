@@ -5,10 +5,15 @@ import android.text.SpannableString
 import android.text.style.RelativeSizeSpan
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.util.Log
+import android.util.LruCache
+import android.os.SystemClock
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -34,6 +39,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -41,11 +49,17 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 @UnstableApi
 class MainActivity : AppCompatActivity() {
 
     private data class Channel(
+        val id: Int,
+        val logo: String,
         val name: String,
         val category: String,
         val streamUrl: String,
@@ -81,6 +95,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playerView: PlayerView
 
     private var player: ExoPlayer? = null
+    private var currentChannelName: String = "-"
+    private var currentChannelCategory: String = "-"
+    private var playStartMs: Long = 0L
+    private var firstFrameLogged = false
+    private var retryCount = 0
     private var playerContainer: FrameLayout? = null
     private var fullScreenButton: TextView? = null
     private var originalPlayerParent: ViewGroup? = null
@@ -266,6 +285,32 @@ class MainActivity : AppCompatActivity() {
         }, 5000L)
     }
 
+    private val tag = "PrinceTV"
+
+    /** Huficha token/mac kwenye URL ili logi zisivuje siri. */
+    private fun safeUrl(url: String): String =
+        url.replace(Regex("(play_token|token|mac|password|pass)=[^&]*", RegexOption.IGNORE_CASE), "$1=***")
+
+    private fun clog(msg: String) =
+        Log.d(tag, "[$currentChannelName] $msg")
+
+    private fun cwarn(msg: String) =
+        Log.w(tag, "[$currentChannelName] $msg")
+
+    private fun cerr(msg: String, t: Throwable? = null) =
+        Log.e(tag, "[$currentChannelName] $msg", t)
+
+    private fun elapsed(): String =
+        "+${SystemClock.elapsedRealtime() - playStartMs}ms"
+
+    private fun stateName(state: Int): String = when (state) {
+        Player.STATE_IDLE -> "IDLE"
+        Player.STATE_BUFFERING -> "BUFFERING"
+        Player.STATE_READY -> "READY"
+        Player.STATE_ENDED -> "ENDED"
+        else -> "UNKNOWN($state)"
+    }
+
     private fun loadChannels() {
         channels.clear()
 
@@ -282,6 +327,8 @@ class MainActivity : AppCompatActivity() {
 
                 channels.add(
                     Channel(
+                        id = item.optInt("id", index + 1),
+                        logo = item.optString("logo", "").trim(),
                         name = item.optString("name", "Channel"),
                         category = item.optString("category", "TV"),
                         streamUrl = item.optString("streamUrl", "").trim(),
@@ -289,7 +336,16 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
             }
+            Log.i(tag, "Channels zimesomwa: ${channels.size}")
+            channels.forEachIndexed { i, c ->
+                Log.i(
+                    tag,
+                    "  #${i + 1} ${c.name} | ${c.category} | " +
+                        (if (c.streamUrl.isBlank()) "HAINA STREAM" else safeUrl(c.streamUrl))
+                )
+            }
         } catch (error: Exception) {
+            Log.e(tag, "Imeshindikana kusoma channels.json", error)
             Toast.makeText(
                 this,
                 "Imeshindikana kusoma channels.json",
@@ -674,6 +730,9 @@ class MainActivity : AppCompatActivity() {
             background = shape(gold, 18)
 
             setOnClickListener {
+                currentChannelName = "MANUAL"
+                currentChannelCategory = "-"
+                retryCount = 0
                 playUrl(manual.text.toString().trim())
             }
         }
@@ -989,6 +1048,95 @@ class MainActivity : AppCompatActivity() {
         refreshNavigation()
     }
 
+    // ---------- LOGO ZA CHANNEL ----------
+    private val logoCache = LruCache<Int, Bitmap>(40)
+    private val logoExecutor = Executors.newFixedThreadPool(3)
+
+    private fun decodeScaled(bytes: ByteArray, targetPx: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= targetPx &&
+            bounds.outHeight / (sample * 2) >= targetPx
+        ) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+    }
+
+    private fun fetchLogoBytes(channel: Channel): ByteArray? {
+        val dir = File(cacheDir, "logos").apply { mkdirs() }
+        val cached = File(dir, "${channel.id}.img")
+
+        // 1) cache ya diski
+        if (cached.exists() && cached.length() > 0) {
+            return cached.readBytes()
+        }
+
+        // 2) URL ya mtandaoni (logo ndani ya channels.json)
+        if (channel.logo.startsWith("http", true)) {
+            try {
+                val conn = URL(channel.logo).openConnection() as HttpURLConnection
+                conn.connectTimeout = 10000
+                conn.readTimeout = 15000
+                conn.instanceFollowRedirects = true
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 PRINCE-TV")
+                val bytes = conn.inputStream.use { it.readBytes() }
+                conn.disconnect()
+                if (bytes.isNotEmpty()) {
+                    cached.writeBytes(bytes)
+                    Log.d(tag, "[${channel.name}] Logo imepakuliwa (${bytes.size} bytes)")
+                    return bytes
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "[${channel.name}] Logo imeshindwa kupakuliwa: ${e.message}")
+            }
+        }
+
+        // 3) faili ndani ya app: assets/logos/<id>.png|webp|jpg  au  assets/logos/<logo>
+        val names = mutableListOf<String>()
+        if (channel.logo.isNotBlank() && !channel.logo.startsWith("http", true)) {
+            names.add(channel.logo)
+        }
+        for (ext in listOf("png", "webp", "jpg", "jpeg")) names.add("${channel.id}.$ext")
+
+        for (n in names) {
+            try {
+                return assets.open("logos/$n").use { it.readBytes() }
+            } catch (_: Exception) {
+            }
+        }
+
+        Log.d(tag, "[${channel.name}] Hakuna logo - itatumika herufi za mwanzo")
+        return null
+    }
+
+    private fun loadLogo(
+        channel: Channel,
+        targetPx: Int,
+        onLoaded: (Bitmap) -> Unit
+    ) {
+        logoCache.get(channel.id)?.let {
+            onLoaded(it)
+            return
+        }
+
+        logoExecutor.execute {
+            val bitmap = try {
+                fetchLogoBytes(channel)?.let { decodeScaled(it, targetPx) }
+            } catch (e: Exception) {
+                Log.w(tag, "[${channel.name}] Logo imeharibika: ${e.message}")
+                null
+            }
+
+            if (bitmap != null) {
+                logoCache.put(channel.id, bitmap)
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) onLoaded(bitmap)
+                }
+            }
+        }
+    }
+
     private fun addChannelCards(parent: LinearLayout) {
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -1018,7 +1166,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            val logo = TextView(this).apply {
+            val initials = TextView(this).apply {
                 text = channelInitials(channel.name)
                 textSize = 25f
                 gravity = Gravity.CENTER
@@ -1031,8 +1179,25 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(
                     if (channel.icon == "news") white else gold
                 )
+            }
 
+            val logoImage = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                visibility = View.GONE
+            }
+
+            val logo = FrameLayout(this).apply {
                 background = logoBackground(channel.icon)
+                clipToOutline = true
+                addView(initials, FrameLayout.LayoutParams(-1, -1))
+                addView(logoImage, FrameLayout.LayoutParams(-1, -1))
+            }
+
+            loadLogo(channel, dp(88)) { bmp ->
+                logoImage.setImageBitmap(bmp)
+                logoImage.visibility = View.VISIBLE
+                initials.visibility = View.GONE
             }
 
             card.addView(
@@ -1151,6 +1316,15 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener {
                     playChannel(channel)
                 }
+            }
+
+            loadLogo(channel, dp(28)) { bmp ->
+                val size = dp(26)
+                val d = android.graphics.drawable.BitmapDrawable(resources, bmp)
+                d.setBounds(0, 0, size, size)
+                chip.setCompoundDrawables(d, null, null, null)
+                chip.compoundDrawablePadding = dp(8)
+                chip.text = channel.name
             }
 
             row.addView(
@@ -1378,7 +1552,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playChannel(channel: Channel) {
+        currentChannelName = channel.name
+        currentChannelCategory = channel.category
+        retryCount = 0
+        Log.i(tag, "=== CHANNEL IMECHAGULIWA: ${channel.name} (${channel.category}) ===")
         if (channel.streamUrl.isBlank()) {
+            cwarn("Stream haijawekwa (URL tupu)")
             Toast.makeText(
                 this,
                 "Stream ya ${channel.name} bado haijawekwa",
@@ -1392,6 +1571,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         status.text = "Inaunganisha ${channel.name}..."
+        clog("URL: ${safeUrl(channel.streamUrl)}")
         playUrl(channel.streamUrl)
     }
 
@@ -1414,6 +1594,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playUrl(url: String) {
+        playStartMs = SystemClock.elapsedRealtime()
+        firstFrameLogged = false
+        clog("playUrl() inaanza -> ${safeUrl(url)}")
         if (
             url.isBlank() ||
             !(
@@ -1421,6 +1604,7 @@ class MainActivity : AppCompatActivity() {
                     url.startsWith("http://", true)
                 )
         ) {
+            cerr("URL si sahihi (haianzi na http/https): ${safeUrl(url)}")
             Toast.makeText(
                 this,
                 "Weka URL sahihi inayoanza na http:// au https://",
@@ -1469,7 +1653,12 @@ class MainActivity : AppCompatActivity() {
 
         val itemBuilder = MediaItem.Builder().setUri(url)
 
-        detectMimeType(url)?.let {
+        val mime = detectMimeType(url)
+        clog("MIME iliyogunduliwa: ${mime ?: "auto-detect"}")
+        if (url.startsWith("http://", true)) {
+            cwarn("URL ni http (si https) - inaweza kuzuiwa na usalama wa mtandao wa Android")
+        }
+        mime?.let {
             itemBuilder.setMimeType(it)
         }
 
@@ -1486,6 +1675,7 @@ class MainActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(
                             playbackState: Int
                         ) {
+                            clog("State -> ${stateName(playbackState)} ${elapsed()}")
                             status.text = when (playbackState) {
                                 Player.STATE_BUFFERING ->
                                     "Inapokea data..."
@@ -1504,9 +1694,32 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            clog("isPlaying=$isPlaying ${elapsed()}")
+                        }
+
+                        override fun onVideoSizeChanged(
+                            videoSize: androidx.media3.common.VideoSize
+                        ) {
+                            clog("Video: ${videoSize.width}x${videoSize.height}")
+                        }
+
+                        override fun onRenderedFirstFrame() {
+                            if (!firstFrameLogged) {
+                                firstFrameLogged = true
+                                clog("FRAME YA KWANZA imeonekana ${elapsed()} tangu kubonyeza")
+                            }
+                        }
+
                         override fun onPlayerError(
                             error: PlaybackException
                         ) {
+                            cerr(
+                                "IMESHINDWA: ${error.errorCodeName} (code=${error.errorCode}) " +
+                                    "msg=${error.message} cause=${error.cause?.javaClass?.simpleName}: " +
+                                    "${error.cause?.message} ${elapsed()}",
+                                error
+                            )
                             status.text =
                                 "Imeshindwa kucheza: ${error.errorCodeName}"
 
@@ -1519,6 +1732,42 @@ class MainActivity : AppCompatActivity() {
                     }
                 )
 
+                exo.addAnalyticsListener(
+                    object : AnalyticsListener {
+                        override fun onLoadError(
+                            eventTime: AnalyticsListener.EventTime,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                            error: java.io.IOException,
+                            wasCanceled: Boolean
+                        ) {
+                            retryCount++
+                            cwarn(
+                                "Load error #$retryCount: ${error.javaClass.simpleName}: ${error.message} " +
+                                    "uri=${safeUrl(loadEventInfo.uri.toString())} canceled=$wasCanceled"
+                            )
+                        }
+
+                        override fun onDroppedVideoFrames(
+                            eventTime: AnalyticsListener.EventTime,
+                            droppedFrames: Int,
+                            elapsedMs: Long
+                        ) {
+                            cwarn("Frames zimedondoka: $droppedFrames kwa ${elapsedMs}ms")
+                        }
+
+                        override fun onBandwidthEstimate(
+                            eventTime: AnalyticsListener.EventTime,
+                            totalLoadTimeMs: Int,
+                            totalBytesLoaded: Long,
+                            bitrateEstimate: Long
+                        ) {
+                            clog("Bandwidth ~${bitrateEstimate / 1000} kbps (bytes=$totalBytesLoaded)")
+                        }
+                    }
+                )
+
+                clog("prepare() inaitwa")
                 exo.setMediaItem(itemBuilder.build())
                 exo.prepare()
                 exo.playWhenReady = true
@@ -1536,6 +1785,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun releasePlayer() {
+        if (player != null) clog("Player inafungwa (release)")
         if (::playerView.isInitialized) {
             playerView.player = null
             playerView.keepScreenOn = false
@@ -1729,6 +1979,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         releasePlayer()
+        logoExecutor.shutdownNow()
         super.onDestroy()
     }
 }
