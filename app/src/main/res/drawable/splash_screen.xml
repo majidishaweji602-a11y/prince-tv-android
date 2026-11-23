@@ -1,5 +1,4 @@
 
-<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item>
@@ -9,13 +8,9 @@
     </item>
 
     <item
+        android:drawable="@drawable/ic_prince_tv"
         android:width="150dp"
         android:height="150dp"
-        android:gravity="center">
-        <bitmap
-            android:src="@drawable/ic_prince_tv"
-            android:gravity="center"
-            android:filter="true" />
-    </item>
+        android:gravity="center" />
 
 </layer-list>
