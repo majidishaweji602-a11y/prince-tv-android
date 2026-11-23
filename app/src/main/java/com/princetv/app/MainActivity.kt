@@ -1182,8 +1182,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             val logoImage = ImageView(this).apply {
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setPadding(dp(8), dp(8), dp(8), dp(8))
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setPadding(0, 0, 0, 0)
                 visibility = View.GONE
             }
 
@@ -1318,12 +1318,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadLogo(channel, dp(28)) { bmp ->
-                val size = dp(26)
-                val d = android.graphics.drawable.BitmapDrawable(resources, bmp)
+            loadLogo(channel, dp(46)) { bmp ->
+                val size = dp(46)
+                val d = androidx.core.graphics.drawable.RoundedBitmapDrawableFactory
+                    .create(resources, bmp)
+                d.cornerRadius = dp(10).toFloat()
                 d.setBounds(0, 0, size, size)
                 chip.setCompoundDrawables(d, null, null, null)
-                chip.compoundDrawablePadding = dp(8)
+                chip.compoundDrawablePadding = dp(10)
+                chip.setPadding(0, 0, dp(14), 0)
                 chip.text = channel.name
             }
 
