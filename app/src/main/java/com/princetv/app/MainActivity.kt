@@ -1,5 +1,8 @@
 package com.princetv.app
 
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.RelativeSizeSpan
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
@@ -1299,17 +1302,23 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun styleTab(item: TextView, name: String) {
+        val selected = name == currentTab
+        item.setTextColor(if (selected) gold else muted)
+        item.background = if (selected) {
+            GradientDrawable().apply {
+                cornerRadius = dp(30).toFloat()
+                setColor(Color.rgb(22, 26, 34))
+            }
+        } else null
+    }
+
     private fun createBottomNavigation(): View {
         bottomNavigation = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(
-                dp(2),
-                dp(5),
-                dp(2),
-                dp(5)
-            )
-            setBackgroundColor(Color.rgb(17, 18, 25))
+            setPadding(dp(6), dp(8), dp(6), dp(10))
+            setBackgroundColor(Color.rgb(10, 11, 14))
             elevation = dp(8).toFloat()
         }
 
@@ -1317,7 +1326,6 @@ class MainActivity : AppCompatActivity() {
             "⌂\nMwanzo",
             "▶\nLive TV",
             "▣\nMovies",
-            "▤\nSeries",
             "◆\nVifurushi",
             "●\nAkaunti"
         )
@@ -1326,45 +1334,32 @@ class MainActivity : AppCompatActivity() {
             val name = tab.substringAfter("\n")
 
             val item = TextView(this).apply {
-                text = tab
-                textSize = 11f
+                text = SpannableString(tab).apply {
+                    setSpan(
+                        RelativeSizeSpan(2.4f), 0, 1,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                }
+                textSize = 14f
                 gravity = Gravity.CENTER
-
-                typeface = Typeface.create(
-                    "sans-serif-bold",
-                    Typeface.NORMAL
-                )
-
-                setTextColor(
-                    if (name == currentTab) gold else muted
-                )
-
-                setPadding(
-                    dp(1),
-                    dp(5),
-                    dp(1),
-                    dp(5)
-                )
-
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
                 setOnClickListener {
                     when (name) {
                         "Mwanzo" -> showHome()
                         "Live TV" -> showLive()
                         "Movies" -> showMovies()
-                        "Series" -> showSeries()
                         "Vifurushi" -> showPackages()
                         "Akaunti" -> showAccount()
                     }
                 }
             }
+            styleTab(item, name)
 
             bottomNavigation.addView(
                 item,
-                LinearLayout.LayoutParams(
-                    0,
-                    dp(62),
-                    1f
-                )
+                LinearLayout.LayoutParams(0, dp(84), 1f)
+                    .apply { setMargins(dp(2), 0, dp(2), 0) }
             )
         }
 
@@ -1378,13 +1373,7 @@ class MainActivity : AppCompatActivity() {
             val item =
                 bottomNavigation.getChildAt(index) as? TextView
                     ?: continue
-
-            val name = item.text.toString()
-                .substringAfter("\n")
-
-            item.setTextColor(
-                if (name == currentTab) gold else muted
-            )
+            styleTab(item, item.text.toString().substringAfter("\n"))
         }
     }
 
