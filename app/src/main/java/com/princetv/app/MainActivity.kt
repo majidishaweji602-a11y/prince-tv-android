@@ -1,4 +1,3 @@
-
 package com.princetv.app
 
 import android.content.pm.ActivityInfo
@@ -296,11 +295,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // HEADER ILIYOBORESHWA
     private fun createHeader(): View {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setPadding(dp(16), dp(20), dp(16), dp(14))
             setBackgroundColor(dark)
         }
 
@@ -308,20 +308,30 @@ class MainActivity : AppCompatActivity() {
             setImageResource(R.drawable.ic_prince_tv)
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "PRINCE TV logo"
-            translationY = dp(6).toFloat()
+            translationY = dp(10).toFloat()
         }
 
         header.addView(
             logo,
-            LinearLayout.LayoutParams(dp(50), dp(50))
+            LinearLayout.LayoutParams(dp(72), dp(72))
         )
 
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(11), 0, 0, 0)
         }
 
-        brand.addView(label("PRINCE TV", 21f, gold, true))
+        brand.addView(
+            label("PRINCE TV", 31f, gold, true).apply {
+                typeface = Typeface.create(
+                    "sans-serif-black",
+                    Typeface.NORMAL
+                )
+                letterSpacing = 0.10f
+            }
+        )
+
         brand.addView(
             label("TANZANIA ENTERTAINMENT", 9f, muted, true)
         )
