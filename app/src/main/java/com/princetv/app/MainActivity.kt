@@ -176,7 +176,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(16), dp(8), dp(16), dp(26))
         }
 
-        // FIX: ScrollView child uses FrameLayout.LayoutParams.
         scroll.addView(
             content,
             FrameLayout.LayoutParams(
@@ -206,6 +205,63 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(rootFrame)
         showHome()
+        showSplashScreen()
+    }
+
+    // PRINCE TV SPLASH SCREEN - 5 SECONDS
+    private fun showSplashScreen() {
+        val splash = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(dark)
+            elevation = dp(100).toFloat()
+            isClickable = true
+            isFocusable = true
+        }
+
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.ic_prince_tv)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "PRINCE TV"
+        }
+
+        splash.addView(
+            logo,
+            LinearLayout.LayoutParams(dp(140), dp(140))
+        )
+
+        splash.addView(
+            label("PRINCE TV", 29f, gold, true).apply {
+                gravity = Gravity.CENTER
+                letterSpacing = 0.08f
+                setPadding(0, dp(14), 0, dp(5))
+            }
+        )
+
+        splash.addView(
+            label(
+                "BURUDANI YAKO, SEHEMU MOJA",
+                11f,
+                muted,
+                true
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+        )
+
+        rootFrame.addView(
+            splash,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        handler.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                rootFrame.removeView(splash)
+            }
+        }, 5000L)
     }
 
     private fun loadChannels() {
@@ -252,6 +308,7 @@ class MainActivity : AppCompatActivity() {
             setImageResource(R.drawable.ic_prince_tv)
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "PRINCE TV logo"
+            translationY = dp(6).toFloat()
         }
 
         header.addView(
@@ -321,9 +378,7 @@ class MainActivity : AppCompatActivity() {
             "SERIES"
         )
 
-        addSectionTitle("SPORTS", "Channel za michezo")
-        addCategoryChannelCards(content, "Sports")
-
+        // Sports haziongezwi tena hapa kwa sababu zipo kwenye LIVE TV.
         refreshNavigation()
         startSlideshow()
     }
@@ -362,14 +417,14 @@ class MainActivity : AppCompatActivity() {
         val watch = Button(this).apply {
             text = "▶  TAZAMA LIVE TV"
             isAllCaps = false
-            textSize = 12f
+            textSize = 13f
             typeface = Typeface.create(
                 "sans-serif-bold",
                 Typeface.NORMAL
             )
             setTextColor(Color.BLACK)
             background = shape(gold, 9)
-            setPadding(dp(12), 0, dp(12), 0)
+            setPadding(dp(14), 0, dp(14), 0)
             setOnClickListener {
                 showLive()
             }
@@ -377,7 +432,7 @@ class MainActivity : AppCompatActivity() {
 
         actions.addView(
             watch,
-            LinearLayout.LayoutParams(-2, dp(44))
+            LinearLayout.LayoutParams(-2, dp(48))
         )
 
         val explore = TextView(this).apply {
@@ -952,7 +1007,7 @@ class MainActivity : AppCompatActivity() {
 
             val logo = TextView(this).apply {
                 text = channelInitials(channel.name)
-                textSize = 18f
+                textSize = 25f
                 gravity = Gravity.CENTER
 
                 typeface = Typeface.create(
@@ -970,8 +1025,8 @@ class MainActivity : AppCompatActivity() {
             card.addView(
                 logo,
                 LinearLayout.LayoutParams(
-                    dp(58),
-                    dp(58)
+                    dp(88),
+                    dp(88)
                 )
             )
 
@@ -1014,8 +1069,8 @@ class MainActivity : AppCompatActivity() {
             row.addView(
                 card,
                 LinearLayout.LayoutParams(
-                    dp(137),
-                    dp(153)
+                    dp(158),
+                    dp(184)
                 ).apply {
                     marginEnd = dp(9)
                 }
@@ -1026,7 +1081,7 @@ class MainActivity : AppCompatActivity() {
 
         parent.addView(
             scroll,
-            LinearLayout.LayoutParams(-1, dp(160))
+            LinearLayout.LayoutParams(-1, dp(190))
         )
     }
 
@@ -1141,28 +1196,28 @@ class MainActivity : AppCompatActivity() {
             artwork.addView(
                 label(
                     if (type == "MOVIES") "FILAMU" else "VIPINDI",
-                    9f,
+                    10f,
                     gold,
                     true
                 )
             )
 
             artwork.addView(
-                label(title, 13f, white, true).apply {
+                label(title, 15f, white, true).apply {
                     setPadding(0, dp(5), 0, dp(3))
                     maxLines = 2
                 }
             )
 
             artwork.addView(
-                label("ITAONGEZWA", 8f, muted, true)
+                label("ITAONGEZWA", 9f, muted, true)
             )
 
             row.addView(
                 artwork,
                 LinearLayout.LayoutParams(
-                    dp(132),
-                    dp(151)
+                    dp(160),
+                    dp(188)
                 ).apply {
                     marginEnd = dp(9)
                 }
@@ -1173,7 +1228,7 @@ class MainActivity : AppCompatActivity() {
 
         parent.addView(
             scroll,
-            LinearLayout.LayoutParams(-1, dp(158))
+            LinearLayout.LayoutParams(-1, dp(196))
         )
     }
 
@@ -1262,7 +1317,7 @@ class MainActivity : AppCompatActivity() {
 
             val item = TextView(this).apply {
                 text = tab
-                textSize = 9f
+                textSize = 11f
                 gravity = Gravity.CENTER
 
                 typeface = Typeface.create(
@@ -1297,7 +1352,7 @@ class MainActivity : AppCompatActivity() {
                 item,
                 LinearLayout.LayoutParams(
                     0,
-                    dp(50),
+                    dp(62),
                     1f
                 )
             )
