@@ -73,12 +73,12 @@ class MainActivity : AppCompatActivity() {
         val colors: IntArray
     )
 
-    private val dark = Color.rgb(7, 20, 38)
-    private val panel = Color.rgb(12, 43, 65)
-    private val panelLight = Color.rgb(18, 55, 78)
-    private val gold = Color.rgb(0, 190, 240)
+    private val dark = Color.rgb(8, 9, 14)
+    private val panel = Color.rgb(24, 25, 34)
+    private val panelLight = Color.rgb(35, 35, 44)
+    private val gold = Color.rgb(224, 184, 78)
     private val white = Color.WHITE
-    private val muted = Color.rgb(153, 174, 194)
+    private val muted = Color.rgb(178, 179, 188)
 
     private val channels = mutableListOf<Channel>()
 
@@ -289,7 +289,11 @@ class MainActivity : AppCompatActivity() {
 
     /** Huficha token/mac kwenye URL ili logi zisivuje siri. */
     private fun safeUrl(url: String): String =
-        url.replace(Regex("(play_token|token|mac|password|pass)=[^&]*", RegexOption.IGNORE_CASE), "$1=***")
+        url.replace(
+            Regex("(play_token|token|mac|password|pass)=([^&]*)", RegexOption.IGNORE_CASE)
+        ) { match ->
+            "${match.groupValues[1]}=***"
+        }
 
     private fun clog(msg: String) =
         Log.d(tag, "[$currentChannelName] $msg")
@@ -356,104 +360,100 @@ class MainActivity : AppCompatActivity() {
 
     // HEADER ILIYOBORESHWA
     private fun createHeader(): View {
-        // PRINCE_TV_REDESIGN
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(10), dp(16), dp(10))
-            setBackgroundColor(Color.rgb(7, 20, 38))
+            setPadding(dp(16), dp(20), dp(16), dp(14))
+            setBackgroundColor(dark)
         }
-        val menu = TextView(this).apply {
-            text = "☰"; textSize = 27f; gravity = Gravity.CENTER
-            setTextColor(white); contentDescription = "Menu"
-            setOnClickListener { showPackages() }
-        }
-        header.addView(menu, LinearLayout.LayoutParams(dp(40), dp(54)))
+
         val logo = ImageView(this).apply {
-            setImageResource(R.drawable.prince_logo)
+            setImageResource(R.drawable.ic_prince_tv)
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "PRINCE TV logo"
+            translationY = dp(10).toFloat()
         }
-        header.addView(logo, LinearLayout.LayoutParams(dp(76), dp(76)))
-        header.addView(label("PRINCE TV", 22f, white, true).apply {
-            typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
-            setPadding(dp(8), 0, 0, 0)
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        fun action(glyph: String, desc: String, click: () -> Unit) = TextView(this).apply {
-            text = glyph; textSize = 25f; gravity = Gravity.CENTER
-            setTextColor(white); contentDescription = desc
-            setOnClickListener { click() }
+
+        header.addView(
+            logo,
+            LinearLayout.LayoutParams(dp(72), dp(72))
+        )
+
+        val brand = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(11), 0, 0, 0)
         }
-        header.addView(action("⇩", "Pakua") { showPackages() }, LinearLayout.LayoutParams(dp(42), dp(54)))
-        header.addView(action("⌕", "Tafuta") { showLive() }, LinearLayout.LayoutParams(dp(42), dp(54)))
-        header.addView(action("♧", "Taarifa") {
-            Toast.makeText(this, "Karibu PRINCE TV", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(dp(42), dp(54)))
+
+        brand.addView(
+            label("PRINCE TV", 31f, gold, true).apply {
+                typeface = Typeface.create(
+                    "sans-serif-black",
+                    Typeface.NORMAL
+                )
+                letterSpacing = 0.10f
+            }
+        )
+
+        brand.addView(
+            label("Burudani Bila Kikomo", 14f, muted, false).apply { letterSpacing = 0.05f; setPadding(0, dp(4), 0, 0) }
+        )
+
+        header.addView(
+            brand,
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+
+        val profileBtn = TextView(this).apply {
+            text = "●"
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setTextColor(gold)
+            background = shape(panel, 40)
+            contentDescription = "Akaunti"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { showAccount() }
+        }
+
+        header.addView(profileBtn, LinearLayout.LayoutParams(dp(60), dp(60)))
         return header
     }
 
     private fun showHome() {
         leavePlayerAndRelease()
         stopSlideshow()
+
         currentTab = "Mwanzo"
         content.removeAllViews()
-        addInfoPanel("🔔  Washa arifa upate taarifa za mechi papo hapo", "Washa sasa")
+
         buildHero()
-        addHomeCategoryTabs()
-        addSectionTitle("Channels", "Chagua channel unayotaka kutazama")
-        addSectionTitle("Trending 🔥🔥", "Channel zinazopendwa")
+
+        addSectionTitle("LIVE TV", "Chagua channel yako")
         addChannelCards(content)
-        addSectionTitle("Movies", "Filamu na burudani")
-        addFeatureCards(content, listOf("ACTION", "DRAMA", "FAMILY", "COMEDY"), "MOVIES")
-        addSectionTitle("Series", "Vipindi na mfululizo")
-        addFeatureCards(content, listOf("LOCAL SERIES", "DRAMA SERIES", "DOCUMENTARY", "KIDS SERIES"), "SERIES")
+
+        addSectionTitle("MOVIES", "Filamu zitakazopatikana")
+        addFeatureCards(
+            content,
+            listOf("ACTION", "DRAMA", "FAMILY", "COMEDY"),
+            "MOVIES"
+        )
+
+        addSectionTitle("SERIES", "Vipindi na mfululizo")
+        addFeatureCards(
+            content,
+            listOf(
+                "LOCAL SERIES",
+                "DRAMA SERIES",
+                "DOCUMENTARY",
+                "KIDS SERIES"
+            ),
+            "SERIES"
+        )
+
+        // Sports haziongezwi tena hapa kwa sababu zipo kwenye LIVE TV.
         refreshNavigation()
         startSlideshow()
-    }
-
-    private fun addHomeCategoryTabs() {
-        val horizontal = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-        }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        listOf("Zote", "Trending 🔥🔥", "Sports", "Movies").forEachIndexed { index, name ->
-            val chip = TextView(this).apply {
-                text = name
-                textSize = 14f
-                typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
-                gravity = Gravity.CENTER
-                setTextColor(if (index == 0) Color.rgb(5, 29, 49) else muted)
-                background = shape(if (index == 0) Color.rgb(0, 190, 240) else Color.rgb(14, 38, 61), 28)
-                setPadding(dp(19), dp(12), dp(19), dp(12))
-                setOnClickListener {
-                    when (name) {
-                        "Zote" -> showHome()
-                        "Movies" -> showMovies()
-                        "Sports" -> {
-                            content.removeAllViews()
-                            currentTab = "Mwanzo"
-                            addSectionTitle("Sports", "Chagua channel za michezo")
-                            addCategoryChannelCards(content, "Sports")
-                        }
-                        else -> {
-                            content.removeAllViews()
-                            currentTab = "Mwanzo"
-                            addSectionTitle("Trending 🔥🔥", "Channel zinazopendwa")
-                            addChannelCards(content)
-                        }
-                    }
-                }
-            }
-            row.addView(chip, LinearLayout.LayoutParams(-2, dp(52)).apply { marginEnd = dp(9) })
-        }
-        horizontal.addView(row)
-        content.addView(horizontal, LinearLayout.LayoutParams(-1, dp(62)).apply {
-            topMargin = dp(15); bottomMargin = dp(7)
-        })
     }
 
     private fun buildHero() {
@@ -1126,7 +1126,9 @@ class MainActivity : AppCompatActivity() {
 
         logoExecutor.execute {
             val bitmap = try {
-                fetchLogoBytes(channel)?.let { decodeScaled(it, targetPx) }
+                // Logo za kadi zinahitaji resolution kubwa ili zisionekane blur.
+                val decodeTarget = maxOf(targetPx, dp(400))
+                fetchLogoBytes(channel)?.let { decodeScaled(it, decodeTarget) }
             } catch (e: Exception) {
                 Log.w(tag, "[${channel.name}] Logo imeharibika: ${e.message}")
                 null
@@ -1149,87 +1151,122 @@ class MainActivity : AppCompatActivity() {
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, dp(8), 0)
         }
 
         for (channel in channels) {
-            // Kadi nzima = logo. Jina liko chini juu ya kivuli.
+            // Kadi ya channel: logo inajaza eneo lote la kadi.
             val card = FrameLayout(this).apply {
-                background = logoBackground(channel.icon)
+                background = shape(panel, 13)
                 clipToOutline = true
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { playChannel(channel) }
+                setOnClickListener {
+                    playChannel(channel)
+                }
             }
 
             val initials = TextView(this).apply {
                 text = channelInitials(channel.name)
-                textSize = 40f
+                textSize = 31f
                 gravity = Gravity.CENTER
-                typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
-                setTextColor(white)
-                setPadding(0, 0, 0, dp(34))
+                typeface = Typeface.create(
+                    "sans-serif-black",
+                    Typeface.NORMAL
+                )
+                setTextColor(if (channel.icon == "news") white else gold)
+                background = logoBackground(channel.icon)
             }
 
             val logoImage = ImageView(this).apply {
-                // Logo inajaza kadi (juu ya eneo la jina), bila kukatwa
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setPadding(dp(8), dp(8), dp(8), dp(40))
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                adjustViewBounds = false
+                setPadding(0, 0, 0, 0)
                 visibility = View.GONE
+                contentDescription = "${channel.name} logo"
             }
 
-            card.addView(initials, FrameLayout.LayoutParams(-1, -1))
-            card.addView(logoImage, FrameLayout.LayoutParams(-1, -1))
+            card.addView(
+                initials,
+                FrameLayout.LayoutParams(-1, -1)
+            )
+            card.addView(
+                logoImage,
+                FrameLayout.LayoutParams(-1, -1)
+            )
 
-            loadLogo(channel, dp(150)) { bmp ->
+            // Kivuli cha chini hufanya maandishi yasomeke juu ya logo.
+            val bottomShade = View(this).apply {
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(
+                        Color.TRANSPARENT,
+                        Color.argb(235, 0, 0, 0)
+                    )
+                )
+            }
+
+            val details = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                setPadding(dp(8), dp(28), dp(8), dp(9))
+                background = GradientDrawable(
+                    GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(
+                        Color.TRANSPARENT,
+                        Color.argb(235, 0, 0, 0)
+                    )
+                )
+            }
+
+            details.addView(
+                label(channel.name, 14f, white, true).apply {
+                    gravity = Gravity.CENTER
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+            )
+
+            details.addView(
+                label(channel.category.uppercase(), 9f, gold, true).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(3), 0, 0)
+                }
+            )
+
+            details.addView(
+                label(
+                    if (channel.streamUrl.isNotBlank()) "●  LIVE" else "HAIPO",
+                    9f,
+                    if (channel.streamUrl.isNotBlank()) gold else muted,
+                    true
+                ).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(5), 0, 0)
+                }
+            )
+
+            card.addView(
+                bottomShade,
+                FrameLayout.LayoutParams(-1, dp(105), Gravity.BOTTOM)
+            )
+            card.addView(
+                details,
+                FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)
+            )
+
+            loadLogo(channel, dp(400)) { bmp ->
                 logoImage.setImageBitmap(bmp)
                 logoImage.visibility = View.VISIBLE
                 initials.visibility = View.GONE
             }
 
-            // Kivuli cha chini + jina
-            val footer = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(dp(6), dp(6), dp(6), dp(7))
-                background = GradientDrawable(
-                    GradientDrawable.Orientation.TOP_BOTTOM,
-                    intArrayOf(Color.argb(0, 0, 0, 0), Color.argb(210, 3, 12, 24))
-                )
-            }
-            footer.addView(label(channel.name, 13f, white, true).apply {
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            card.addView(
-                footer,
-                FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM)
-            )
-
-            // Beji ya LIVE juu kushoto
-            val live = channel.streamUrl.isNotBlank()
-            card.addView(
-                TextView(this).apply {
-                    text = if (live) "● LIVE" else "HAIPO"
-                    textSize = 10f
-                    typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
-                    setTextColor(if (live) Color.rgb(5, 29, 49) else white)
-                    background = shape(
-                        if (live) Color.rgb(0, 190, 240) else Color.argb(160, 60, 70, 85),
-                        8
-                    )
-                    setPadding(dp(8), dp(3), dp(8), dp(3))
-                },
-                FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
-                    setMargins(dp(8), dp(8), 0, 0)
-                }
-            )
-
             row.addView(
                 card,
-                LinearLayout.LayoutParams(dp(150), dp(196)).apply {
-                    marginEnd = dp(10)
+                LinearLayout.LayoutParams(
+                    dp(158),
+                    dp(184)
+                ).apply {
+                    marginEnd = dp(9)
                 }
             )
         }
@@ -1238,7 +1275,7 @@ class MainActivity : AppCompatActivity() {
 
         parent.addView(
             scroll,
-            LinearLayout.LayoutParams(-1, dp(204))
+            LinearLayout.LayoutParams(-1, dp(190))
         )
     }
 
@@ -1297,7 +1334,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadLogo(channel, dp(150)) { bmp ->
+            loadLogo(channel, dp(46)) { bmp ->
                 val size = dp(46)
                 val d = androidx.core.graphics.drawable.RoundedBitmapDrawableFactory
                     .create(resources, bmp)
@@ -1440,7 +1477,7 @@ class MainActivity : AppCompatActivity() {
         subtitle: String
     ) {
         content.addView(
-            label(title, 18f, white, true).apply {
+            label(title, 18f, gold, true).apply {
                 letterSpacing = 0.025f
                 setPadding(
                     0,
@@ -1459,8 +1496,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun styleTab(item: TextView, name: String) {
-        val selected = name == currentTab || (name == "Nyumbani" && currentTab == "Mwanzo") || (name == "Mechi" && currentTab == "Live TV") || (name == "Wasifu" && currentTab == "Akaunti")
-        item.setTextColor(if (selected) Color.rgb(0, 190, 240) else muted)
+        val selected = name == currentTab
+        item.setTextColor(if (selected) gold else muted)
         item.background = if (selected) {
             GradientDrawable().apply {
                 cornerRadius = dp(30).toFloat()
@@ -1473,32 +1510,52 @@ class MainActivity : AppCompatActivity() {
         bottomNavigation = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(8), dp(7), dp(8), dp(8))
-            setBackgroundColor(Color.rgb(13, 37, 61))
-            elevation = dp(10).toFloat()
+            setPadding(dp(6), dp(8), dp(6), dp(10))
+            setBackgroundColor(Color.rgb(10, 11, 14))
+            elevation = dp(8).toFloat()
         }
-        val tabs = listOf("⌂\nNyumbani", "♜\nMechi", "♙\nWasifu")
+
+        val tabs = listOf(
+            "⌂\nMwanzo",
+            "▶\nLive TV",
+            "▣\nMovies",
+            "◆\nVifurushi",
+            "●\nAkaunti"
+        )
+
         for (tab in tabs) {
             val name = tab.substringAfter("\n")
+
             val item = TextView(this).apply {
                 text = SpannableString(tab).apply {
-                    setSpan(RelativeSizeSpan(2.1f), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(
+                        RelativeSizeSpan(2.4f), 0, 1,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
                 }
-                textSize = 13f
+                textSize = 14f
                 gravity = Gravity.CENTER
-                typeface = Typeface.create("sans-serif-bold", Typeface.NORMAL)
-                setPadding(dp(4), dp(5), dp(4), dp(5))
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
                 setOnClickListener {
                     when (name) {
-                        "Nyumbani" -> showHome()
-                        "Mechi" -> showLive()
-                        "Wasifu" -> showAccount()
+                        "Mwanzo" -> showHome()
+                        "Live TV" -> showLive()
+                        "Movies" -> showMovies()
+                        "Vifurushi" -> showPackages()
+                        "Akaunti" -> showAccount()
                     }
                 }
             }
             styleTab(item, name)
-            bottomNavigation.addView(item, LinearLayout.LayoutParams(0, dp(66), 1f))
+
+            bottomNavigation.addView(
+                item,
+                LinearLayout.LayoutParams(0, dp(84), 1f)
+                    .apply { setMargins(dp(2), 0, dp(2), 0) }
+            )
         }
+
         return bottomNavigation
     }
 
